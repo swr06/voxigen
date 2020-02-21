@@ -11,7 +11,7 @@
 #include "voxigen/rendering/simpleRegionRenderer.h"
 #include "voxigen/rendering/simpleShapes.h"
 #include "voxigen/object.h"
-#include "voxigen/rendering/renderPrepThread.h"
+//#include "voxigen/rendering/renderPrepThread.h"
 #include "voxigen/volume/activeVolume.h"
 #include "voxigen/rendering/voxigen_gltext.h"
 #include "voxigen/rendering/nativeGL.h"
@@ -73,12 +73,12 @@ public:
 //    typedef prep::RequestMesh<_Grid, ChunkRendererType> ChunkRequestMesh;
 //    typedef prep::RequestMesh<_Grid, RegionRendererType> RegionRequestMesh;
 
-    typedef RenderPrepThread<bool, ChunkRendererType> MesherThread;
-    struct MeshRequestInfo
-    {
-        typename MesherThread::Request *request;
-        MeshBuffer meshBuffer;
-    };
+//    typedef RenderPrepThread<bool, ChunkRendererType> MesherThread;
+//    struct MeshRequestInfo
+//    {
+//        typename MesherThread::Request *request;
+//        MeshBuffer meshBuffer;
+//    };
 
     SimpleRenderer(GridType *grid);
     ~SimpleRenderer();
@@ -140,6 +140,7 @@ public:
     RegionRendererType *getFreeRegionRenderer();
     void releaseRegionRenderer(RegionRendererType *renderer);
 
+    size_t getChunksLoaded() { return m_chunksLoaded; }
     size_t getChunksLoading() { return m_chunksLoading; }
     size_t getChunksWaitingMesh() { return m_meshChunk.size(); }
     size_t getChunksMeshing() { return m_chunksMeshing; }
@@ -156,7 +157,7 @@ private:
     void uploadMesh(typename MesherThread::Request *request);
     void completeMeshUploads();
 
-    MesherThread m_mesherThread;
+//    MesherThread m_mesherThread;
 //    void rendererUpdateChunks();
 //    void prepUpdateChunks(std::vector<ChunkRendererType *> &addRenderers, std::vector<ChunkRendererType *> &updateRenderers, std::vector<ChunkRendererType *> &removeRenderers);
 //    void updateOcclusionQueries();
@@ -279,6 +280,7 @@ private:
     unsigned int m_outlineInstanceVertices;
 
     //stats
+    size_t m_chunksLoaded;
     size_t m_chunksLoading;
     size_t m_chunksMeshing;
     size_t m_meshUploading;

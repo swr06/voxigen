@@ -11,7 +11,7 @@
 #include "voxigen/texturing/textureAtlas.h"
 #include "voxigen/meshes/chunkTextureMesh.h"
 #include "voxigen/rendering/renderAction.h"
-#include "voxigen/rendering/renderPrepThread.h"
+//#include "voxigen/rendering/renderPrepThread.h"
 #include "voxigen/rendering/voxigen_gltext.h"
 
 #include <string>
@@ -107,6 +107,16 @@ public:
     void releaseChunkMemory();
 
     bool incrementCopy();
+    void incrementMesh()
+    {
+        assert(m_meshRequestCount<2);
+        m_meshRequestCount++;
+    }
+    void decrementMesh()
+    {
+        assert(m_meshRequestCount>0);
+        m_meshRequestCount--;
+    }
     
     void draw(const glm::ivec3 &offset);
     void drawInfo(const glm::mat4x4 &projectionViewMat, const glm::ivec3 &offset);
@@ -145,6 +155,8 @@ public:
     unsigned int refCount;
 
 private:
+    int m_meshRequestCount;
+
     void updateInfoText();
     void calculateMemoryUsed();
 

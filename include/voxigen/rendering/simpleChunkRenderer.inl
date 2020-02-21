@@ -57,7 +57,8 @@ m_vertexArrayGen(false),
 //#ifndef NDEBUG
 m_outlineGen(false),
 m_outlineBuilt(false),
-m_infoText(nullptr)
+m_infoText(nullptr),
+m_meshRequestCount(0)
 //#endif //NDEBUG
 {}
 
@@ -479,7 +480,7 @@ void SimpleChunkRenderer<_Region, _Chunk>::drawOutline(const glm::ivec3 &offset)
 
     HandleAction action=m_chunkHandle->action();
 
-    if(action==HandleAction::Idle)
+    if(m_action == RenderAction::Idle)
     {
         HandleState state=m_chunkHandle->state();
 
@@ -495,10 +496,23 @@ void SimpleChunkRenderer<_Region, _Chunk>::drawOutline(const glm::ivec3 &offset)
         else if(state==HandleState::Unknown)
             color=glm::vec3(0.0f, 0.0f, 0.0f);
     }
-    else if(action==HandleAction::Reading)
-        color=glm::vec3(0.5f, 0.0f, 1.0f);
-    else if(action==HandleAction::Generating)
+    else if(m_action == RenderAction::HandleBusy)
+    {
+        if(action==HandleAction::Reading)
+            color=glm::vec3(0.5f, 0.0f, 1.0f);
+        else if(action==HandleAction::Generating)
+            color=glm::vec3(1.0f, 0.5f, 0.0f);
+        else
+            color=glm::vec3(1.0f, 0.0f, 1.0f);
+    }
+    else if(m_action==RenderAction::Meshing)
+    {
+        color=glm::vec3(0.0f, 0.5f, 1.0f);
+    }
+    else
+    {
         color=glm::vec3(1.0f, 0.5f, 0.0f);
+    }
 
     m_outlineProgram.uniform(m_outlineOffsetId)=glm::vec3(offset)+glm::vec3(getGridOffset());
     m_outlineProgram.uniform(m_outlineColorId)=color;

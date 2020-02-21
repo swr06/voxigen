@@ -23,6 +23,7 @@ m_activeRegionVolume(grid, &grid->getDescriptors(),
     std::bind(&SimpleRenderer<_Grid>::releaseRegionRenderer, this, std::placeholders::_1)),
 m_showRegions(true),
 m_showChunks(true),
+m_chunksLoaded(0),
 m_chunksLoading(0),
 m_chunksMeshing(0),
 m_meshUploading(0)
@@ -402,7 +403,7 @@ void SimpleRenderer<_Grid>::update(bool &regionsUpdated, bool &chunksUpdated)
             continue;
         }
 
-        if((handle->action()==voxigen::HandleAction::Idle)&&(!handle->empty()))
+        if((renderer->getAction()==RenderAction::Idle)&&(!handle->empty()))
         {
             if(m_mesherThread.requestMesh(renderer, m_textureAtlas.get()))
             {
@@ -425,8 +426,9 @@ void SimpleRenderer<_Grid>::updateChunkHandles(bool &regionsUpdated, bool &chunk
 {
     std::vector<RegionHash> updatedRegions;
     std::vector<Key> updatedChunks;
+    RequestQueue completedRequests;
     
-    m_grid->getUpdated(updatedRegions, updatedChunks);
+    m_grid->getUpdated(updatedRegions, updatedChunks, completedRequests);
 
     if(!updatedRegions.empty())
     {
@@ -467,7 +469,7 @@ void SimpleRenderer<_Grid>::updateChunkHandles(bool &regionsUpdated, bool &chunk
     for(size_t i=0; i<updatedChunks.size(); ++i)
     {
         m_chunksLoading--;
-
+        
         Key &key=updatedChunks[i];
 
         index.region=descriptors.getRegionIndex(key.regionHash);
@@ -485,6 +487,25 @@ void SimpleRenderer<_Grid>::updateChunkHandles(bool &regionsUpdated, bool &chunk
             m_meshChunk.push_back(renderer);
         }
     }
+
+    for(size_t i=0; i<completedRequests.size(); ++i)
+    {
+        process::Request *request=completedRequests[i];
+
+        switch(request->type)
+        {
+        case prep::Mesh:
+            {
+                processChunkMesh(request);
+            }
+            break;
+        }
+
+
+        getProcessThread().releaseRequest(request);
+
+    }
+    completedRequests.clear();
 }
 
 template<typename _Grid>
@@ -492,33 +513,35 @@ void SimpleRenderer<_Grid>::updatePrepChunks()
 {
     //TODO: need to add limits on how many to process in a single update
 
-    m_mesherThread.updateQueues(m_completedRequest);
-
-    if(!m_completedRequest.empty())
-    {
-//        for(RenderPrepThread::Request *request:m_completedRequest)
-        for(size_t i=0; i<m_completedRequest.size(); ++i)
-        {
-            typename MesherThread::Request *request=m_completedRequest[i];
-
-            switch(request->type)
-            {
-            case prep::Mesh:
-                {
-                    processChunkMesh(request);
-                }
-                break;
-            }
-        }
-        m_completedRequest.clear();
-    }
+    //m_mesherThread.updateQueues(m_completedRequest);
+//    getProcessThread().updateQueues(m_completedRequest);
+//
+//    if(!m_completedRequest.empty())
+//    {
+////        for(RenderPrepThread::Request *request:m_completedRequest)
+//        for(size_t i=0; i<m_completedRequest.size(); ++i)
+//        {
+//            process::Request *request=m_completedRequest[i];
+//
+//            switch(request->type)
+//            {
+//            case prep::Mesh:
+//                {
+//                    processChunkMesh(request);
+//                }
+//                break;
+//            }
+//        }
+//        m_completedRequest.clear();
+//    }
 }
 
 template<typename _Grid>
-void SimpleRenderer<_Grid>::processChunkMesh(typename MesherThread::Request *request)//ChunkRequestMesh *request)
+void SimpleRenderer<_Grid>::processChunkMesh(process::Request *request)//ChunkRequestMesh *request)
 {
     ChunkRenderType *renderer=request->getObject();
 
+    renderer->decrementMesh();
     //updated chunks just need to swap out the mesh as that is all that should have been changed
 #ifdef DEBUG_MESH
     glm::ivec3 regionIndex=renderer->getRegionIndex();
@@ -788,7 +811,10 @@ typename SimpleRenderer<_Grid>::ChunkRendererType *SimpleRenderer<_Grid>::getFre
     ChunkRendererType *renderer=m_freeChunkRenders.get();
 
     if(renderer)
+    {
+        m_chunksLoaded++;
         renderer->build();
+    }
     return renderer;
 }
 
@@ -802,6 +828,8 @@ void SimpleRenderer<_Grid>::releaseChunkRenderer(ChunkRendererType *renderer)
         gl::glDeleteBuffers(1, &prevMesh.vertexBuffer);
         gl::glDeleteBuffers(1, &prevMesh.indexBuffer);
     }
+
+    m_chunksLoaded--;
     m_freeChunkRenders.release(renderer);
 }
 

@@ -55,20 +55,21 @@ bool RenderPrepThread<_DataType, _Object>::requestMesh(_Object *object, TextureA
     auto chunkHandle=object->getChunkHandle();
 
     assert(!chunkHandle->empty());
-    assert(chunkHandle->action()==HandleAction::Idle);
+    assert(object->getAction()==RenderAction::Idle);
 
     glm::ivec3 regionIndex=object->getRegionIndex();
     glm::ivec3 chunkIndex=object->getChunkIndex();
 
-    Log::debug("MainThread - RenderPrepThread %x (%d, %d, %d) (%d, %d, %d) requestMesh (%x)", object, 
+    Log::debug("MainThread - RenderPrepThread %x (%d, %d, %d) (%d, %d, %d) requestMesh (%x) action %d", object, 
         regionIndex.x, regionIndex.y, regionIndex.z,
         chunkIndex.x, chunkIndex.y, chunkIndex.z,
-        request);
+        request, object->getAction());
 #endif//DEBUG_MESH
     request->type=prep::Type::Mesh;
     request->priority=prep::Priority::Mesh;
     Request::ObjectMesh &objectMesh=request->getObjectMesh();
-
+    
+    object->incrementMesh();
     objectMesh.object=object;
     objectMesh.mesh=nullptr;
     objectMesh.textureAtlas=textureAtlas;
@@ -395,7 +396,7 @@ bool RenderPrepThread<_DataType, _Object>::buildMesh(Request *request, voxigen::
 
     std::vector<Mesh::Vertex> &vertexes=scratchMesh->getVertexes();
     std::vector<int> &indexes=scratchMesh->getIndexes();
-
+    
     //copy from scratch to allocated mesh
     std::vector<Mesh::Vertex> &meshVertexes=mesh->getVertexes();
     std::vector<int> &meshIndexes=mesh->getIndexes();

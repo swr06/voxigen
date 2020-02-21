@@ -238,6 +238,7 @@ set(voxigen_volume
     include/voxigen/volume/chunkHandle.inl
     include/voxigen/volume/dataHandler.h
     include/voxigen/volume/dataStore.h
+    include/voxigen/volume/dataStore.inl
     include/voxigen/volume/gridDescriptors.h
     src/volume/gridDescriptors.cpp
     include/voxigen/volume/gridFunctions.h
@@ -248,6 +249,7 @@ set(voxigen_volume
     include/voxigen/volume/regular2DGrid.h
     src/volume/regular2DGrid.cpp
     include/voxigen/volume/regularGrid.h
+    include/voxigen/volume/regularGrid.inl
 )
 source_group("volume" FILES ${voxigen_volume})
 
@@ -260,8 +262,12 @@ set(voxigen_source
     src/noise.cpp
     include/voxigen/object.h
     src/object.cpp
-    include/voxigen/processQueue.h
-    include/voxigen/processQueue.inl
+#    include/voxigen/processQueue.h
+#    include/voxigen/processQueue.inl
+    include/voxigen/processingThread.h
+    src/processingThread.cpp
+    include/voxigen/queueThread.h
+    src/queueThread.cpp
     include/voxigen/search.h
     include/voxigen/simpleCamera.h
     src/simpleCamera.cpp

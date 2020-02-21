@@ -112,6 +112,7 @@ void DebugScreen::updateChunkInfo(World *world, WorldRenderer *renderer)
     }
 
     ImGui::Text("Chunks");
+    ImGui::Text("  Renderers: %d", renderer->getChunksLoaded());
     ImGui::Text("  Loading: %d", renderer->getChunksLoading());
     ImGui::Text("  Waiting Mesh: %d", renderer->getChunksWaitingMesh());
     ImGui::Text("  Meshing: %d", renderer->getChunksMeshing());

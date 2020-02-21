@@ -230,7 +230,10 @@ int main(int argc, char ** argv)
     framebuffer_size_callback(window, width, height);
 
     World world;
+    ProcessThread &processThread=getProcessThread();
 
+    processThread.setSizes(details::regionSize<typename World::RegionType>(), details::chunkSize<typename World::ChunkType>())
+    processThread.start();
     fs::path worldsDirectory("worlds");
 
     if(!fs::exists(worldsDirectory))
@@ -274,7 +277,7 @@ int main(int argc, char ** argv)
     renderingOptions.playerRegionIndex=world.getRegionIndex(renderingOptions.playerRegion);
     renderingOptions.playerChunkIndex=world.getChunkIndex(renderingOptions.playerChunk);
     
-    //set player position to local region
+    //set player position to localgion
     glm::vec3 regionPos=world.gridPosToRegionPos(renderingOptions.playerRegion, glm::vec3(worldMiddle))+glm::vec3(32.0f, 32.0f, 0.0f);
     
     renderingOptions.camera.setPosition(renderingOptions.playerRegion, regionPos);
@@ -289,8 +292,8 @@ int main(int argc, char ** argv)
 
     renderer.setCamera(&renderingOptions.camera);
     renderer.build();
-    renderer.setViewRadius(glm::ivec3(512, 512, 128));
-//    renderer.setViewRadius(glm::ivec3(2048, 2048, 256));
+//    renderer.setViewRadius(glm::ivec3(512, 512, 128));
+    renderer.setViewRadius(glm::ivec3(2048, 2048, 512));
 
     renderer.setCameraChunk(renderingOptions.playerRegionIndex, renderingOptions.playerChunkIndex);
     renderer.setPlayerChunk(renderingOptions.playerRegionIndex, renderingOptions.playerChunkIndex);
@@ -388,6 +391,8 @@ int main(int argc, char ** argv)
         // Poll for and process events
         glfwPollEvents();
     }
+
+    processThread.stop();
 
     //bring renderers down before world is terminated;
     renderer.destroy();
