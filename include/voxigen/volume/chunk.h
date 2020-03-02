@@ -10,7 +10,7 @@
 #include <type_traits>
 
 #ifdef DEBUG_ALLOCATION
-#include "voxigen/log.h"
+#include "voxigen/fileio/log.h"
 #endif//DEBUG_ALLOCATION
 
 namespace voxigen
@@ -71,15 +71,18 @@ Chunk<_Cell, _x, _y, _z>::Chunk(ChunkHash hash, unsigned int revision, const glm
     m_gridOffset(gridOffset),
     m_validCells(0),
     m_lod(lod),
-    m_hasNeighbors(false)
+    m_hasNeighbors(false),
+    m_neighbors(9)
 {
     size_t size=(_x*_y*_z)/(lod+1);
     m_cells.resize(size);
 
+    MEMORY_CHECK
     std::fill(m_neighbors.begin(), m_neighbors.end(), nullptr);
+    MEMORY_CHECK
     
 #ifdef DEBUG_ALLOCATION
-    Log::debug("chunk (%d) allocate - data %x size %d\n", m_hash, m_cells.data(), size);
+    Log::debug("Chunk::Chunk %llx hash:%d allocate cells - data %llx size %d\n", this, m_hash, m_cells.data(), size);
 #endif
 }
 
@@ -87,7 +90,7 @@ template<typename _Cell, size_t _x, size_t _y, size_t _z>
 Chunk<_Cell, _x, _y, _z>::~Chunk()
 {
 #ifdef DEBUG_ALLOCATION
-    Log::debug("chunk (%d) freed - data %x\n", m_hash, m_cells.data());
+    Log::debug("Chunk::~Chunk %llx hash:%d  free cells - data %llx\n", this, m_hash, m_cells.data());
 #endif
 };
 

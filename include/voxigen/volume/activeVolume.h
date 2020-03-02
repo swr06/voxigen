@@ -73,6 +73,8 @@ public:
 
     void releaseInfo(_Container *containerInfo);
 
+    void generateUpdateOrder();
+
 private:
     void initVolumeInfo();
 
@@ -115,6 +117,8 @@ private:
     VolumeInfo m_volume;
     glm::ivec3 m_volumeSize;
     glm::ivec3 m_volumeCenterIndex;
+
+    std::vector<size_t> m_updateOrder;
 
     std::vector<ContainerType *>m_containerReleaseQueue;
     FreeQueue<ContainerType> m_containerQueue;

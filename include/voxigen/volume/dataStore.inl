@@ -12,8 +12,8 @@ m_descriptors(descriptors)
 template<typename _Grid>
 void DataStore<_Grid>::initialize()
 {
-    m_ioThreadRun=true;
-    m_ioThread=std::thread(std::bind(&DataStore<_Grid>::ioThread, this));
+//    m_ioThreadRun=true;
+//    m_ioThread=std::thread(std::bind(&DataStore<_Grid>::ioThread, this));
 }
 
 template<typename _Grid>
@@ -21,13 +21,13 @@ void DataStore<_Grid>::terminate()
 {
     //thread flags are not atomic so we need the mutexes to coordinate the setting, 
     //otherwise would have to loop re-notifiying thread until it stopped
-    {
-        std::unique_lock<std::mutex> lock(m_ioMutex);
-        m_ioThreadRun=false;
-    }
-
-    m_ioEvent.notify_all();
-    m_ioThread.join();
+//    {
+//        std::unique_lock<std::mutex> lock(m_ioMutex);
+//        m_ioThreadRun=false;
+//    }
+//
+//    m_ioEvent.notify_all();
+//    m_ioThread.join();
 }
 
 template<typename _Grid>
@@ -317,7 +317,7 @@ bool DataStore<_Grid>::loadChunk(ChunkHandleType *chunkHandle, size_t lod, bool 
         if(chunkHandle->action()!=HandleAction::Idle)
         {
 #ifdef LOG_PROCESS_QUEUE
-            Log::debug("MainThread - ChunkHandle %x (%d, %d) load failed, not idle\n", chunkHandle, chunkHandle->regionHash(), chunkHandle->hash());
+            Log::debug("MainThread - ChunkHandle %llx (%d, %d) load failed, not idle\n", chunkHandle, chunkHandle->regionHash(), chunkHandle->hash());
 #endif//LOG_PROCESS_QUEUE
             return value;
         }
@@ -327,10 +327,10 @@ bool DataStore<_Grid>::loadChunk(ChunkHandleType *chunkHandle, size_t lod, bool 
             //we dont have it in memory so we need to load or generate it
             if(!chunkHandle->cachedOnDisk())
 //                value=generate(chunkHandle, lod);
-                value=getProcessThread().requestGenerateChunk(chunkHandle, lod);
+                value=getProcessThread().requestChunkGenerate(chunkHandle, lod);
             else
 //                value=read(chunkHandle, lod);
-                value=getProcessThread().requestReadChunk(chunkHandle, lod);
+                value=getProcessThread().requestChunkRead(chunkHandle, lod);
         }
     }
 
@@ -347,11 +347,11 @@ bool DataStore<_Grid>::cancelLoadChunk(ChunkHandleType *chunkHandle)
 
 //    return cancel(chunkHandle);
     if(chunkHandle->action() == HandleAction::Reading)
-        return value=getProcessThread().cancelReadChunk(chunkHandle);
+        return getProcessThread().cancelChunkRead(chunkHandle);
     else if(chunkHandle->action()==HandleAction::Writing)
-        return value=getProcessThread().cancelWriteChunk(chunkHandle);
+        return getProcessThread().cancelChunkWrite(chunkHandle);
     else if(chunkHandle->action()==HandleAction::Generating)
-        return value=getProcessThread().cancelWriteChunk(chunkHandle);
+        return getProcessThread().cancelChunkGenerate(chunkHandle);
 
     assert(false);
     return false;
@@ -515,7 +515,7 @@ template<typename _Grid>
 bool DataStore<_Grid>::generateRegion(RegionHandleType *handle, size_t lod)
 {
 #ifdef LOG_PROCESS_QUEUE
-    Log::debug("MainThread - RegionHandle %x (%d, %d) generating\n", handle.get(), chunkHandle->regionHash(), chunkHandle->hash());
+    Log::debug("MainThread - RegionHandle %llx (%d, %d) generating\n", handle.get(), chunkHandle->regionHash(), chunkHandle->hash());
 #endif//LOG_PROCESS_QUEUE
 
 //    bool value=m_processQueue->addGenerateRegion(handle, lod);
@@ -530,7 +530,7 @@ template<typename _Grid>
 bool DataStore<_Grid>::generate(ChunkHandleType *chunkHandle, size_t lod)
 {
 #ifdef LOG_PROCESS_QUEUE
-    Log::debug("MainThread - ChunkHandle %x (%d, %d) generating\n", chunkHandle, chunkHandle->regionHash(), chunkHandle->hash());
+    Log::debug("MainThread - ChunkHandle %llx (%d, %d) generating\n", chunkHandle, chunkHandle->regionHash(), chunkHandle->hash());
 #endif//LOG_PROCESS_QUEUE
 
 //    bool value=m_processQueue->addGenerate(chunkHandle, lod);
@@ -545,7 +545,7 @@ template<typename _Grid>
 bool DataStore<_Grid>::read(ChunkHandleType *chunkHandle, size_t lod)
 {
 #ifdef LOG_PROCESS_QUEUE
-    Log::debug("MainThread -  ChunkHandle %x (%d, %d) reading", chunkHandle, chunkHandle->regionHash(), chunkHandle->hash());
+    Log::debug("MainThread -  ChunkHandle %llx (%d, %d) reading", chunkHandle, chunkHandle->regionHash(), chunkHandle->hash());
 #endif//LOG_PROCESS_QUEUE
     
     getProcessThread()->requestChunkRead(chunkHandle, lod);
@@ -556,7 +556,7 @@ template<typename _Grid>
 bool DataStore<_Grid>::write(ChunkHandleType *chunkHandle)
 {
 #ifdef LOG_PROCESS_QUEUE
-    Log::debug("MainThread -  ChunkHandle %x (%d, %d) writing", chunkHandle, chunkHandle->regionHash(), chunkHandle->hash());
+    Log::debug("MainThread -  ChunkHandle %llx (%d, %d) writing", chunkHandle, chunkHandle->regionHash(), chunkHandle->hash());
 #endif//LOG_PROCESS_QUEUE
     
     getProcessThread()->requestChunkWrite(chunkHandle, lod);
@@ -575,7 +575,7 @@ template<typename _Grid>
 bool DataStore<_Grid>::cancel(ChunkHandleType *chunkHandle)
 {
 #ifdef LOG_PROCESS_QUEUE
-    Log::debug("MainThread - ChunkHandle %x (%d, %d) canceling", chunkHandle, chunkHandle->regionHash(), chunkHandle->hash());
+    Log::debug("MainThread - ChunkHandle %llx (%d, %d) canceling", chunkHandle, chunkHandle->regionHash(), chunkHandle->hash());
 #endif//LOG_PROCESS_QUEUE
 
 //    bool value=m_processQueue->addCancel(chunkHandle);

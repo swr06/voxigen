@@ -4,26 +4,29 @@ namespace voxigen
 {
 
 template<typename _Grid>
-std::vector<float> EquiRectWorldGenerator<_Grid>::heightMap;
-template<typename _Grid>
-std::vector<float> EquiRectWorldGenerator<_Grid>::blockHeightMap;
-template<typename _Grid>
-std::vector<float> EquiRectWorldGenerator<_Grid>::blockScaleMap;
-template<typename _Grid>
-std::vector<float> EquiRectWorldGenerator<_Grid>::xMap;
-template<typename _Grid>
-std::vector<float> EquiRectWorldGenerator<_Grid>::yMap;
-template<typename _Grid>
-std::vector<float> EquiRectWorldGenerator<_Grid>::zMap;
-template<typename _Grid>
-std::vector<float> EquiRectWorldGenerator<_Grid>::layerMap;
-template<typename _Grid>
-std::unique_ptr<HastyNoise::VectorSet> EquiRectWorldGenerator<_Grid>::vectorSet;
+thread_local ThreadStorage EquiRectWorldGenerator<_Grid>::m_threadStorage;
 
-template<typename _Grid>
-std::vector<float> EquiRectWorldGenerator<_Grid>::regionHeightMap;
-template<typename _Grid>
-std::unique_ptr<HastyNoise::VectorSet> EquiRectWorldGenerator<_Grid>::regionVectorSet;
+//template<typename _Grid>
+//std::vector<float> EquiRectWorldGenerator<_Grid>::heightMap;
+//template<typename _Grid>
+//std::vector<float> EquiRectWorldGenerator<_Grid>::blockHeightMap;
+//template<typename _Grid>
+//std::vector<float> EquiRectWorldGenerator<_Grid>::blockScaleMap;
+//template<typename _Grid>
+//std::vector<float> EquiRectWorldGenerator<_Grid>::xMap;
+//template<typename _Grid>
+//std::vector<float> EquiRectWorldGenerator<_Grid>::yMap;
+//template<typename _Grid>
+//std::vector<float> EquiRectWorldGenerator<_Grid>::zMap;
+//template<typename _Grid>
+//std::vector<float> EquiRectWorldGenerator<_Grid>::layerMap;
+//template<typename _Grid>
+//std::unique_ptr<HastyNoise::VectorSet> EquiRectWorldGenerator<_Grid>::vectorSet;
+//
+//template<typename _Grid>
+//std::vector<float> EquiRectWorldGenerator<_Grid>::regionHeightMap;
+//template<typename _Grid>
+//std::unique_ptr<HastyNoise::VectorSet> EquiRectWorldGenerator<_Grid>::regionVectorSet;
 
 template<typename _Grid>
 EquiRectWorldGenerator<_Grid>::EquiRectWorldGenerator()
@@ -82,9 +85,6 @@ void EquiRectWorldGenerator<_Grid>::initialize(IGridDescriptors *descriptors)
     m_cellularNoise=HastyNoise::CreateNoise(seed+2, m_simdLevel);
 
     m_cellularNoise->SetNoiseType(HastyNoise::NoiseType::Cellular);
-
-    vectorSet=std::make_unique<HastyNoise::VectorSet>(m_simdLevel);
-    regionVectorSet=std::make_unique<HastyNoise::VectorSet>(m_simdLevel);
 
     std::default_random_engine generator(seed);
     std::uniform_int_distribution<int> plateDistribution(m_descriptorValues.m_plateCountMin, m_descriptorValues.m_plateCountMax);
@@ -846,6 +846,10 @@ inline int getBlockType<true>(int z, size_t columnHeight, size_t stride)
 template<typename _Grid>
 unsigned int EquiRectWorldGenerator<_Grid>::generateChunk(const glm::vec3 &startPos, const glm::ivec3 &chunkSize, void *buffer, size_t bufferSize, size_t lod)
 {
+    if(!m_threadStorage.vectorSet)
+        m_threadStorage.vectorSet=std::make_unique<HastyNoise::VectorSet>(m_simdLevel);
+    
+
 //    glm::vec3 offset=glm::ivec3(ChunkType::sizeX::value, ChunkType::sizeY::value, ChunkType::sizeZ::value)*chunkIndex;
     glm::vec3 scaledOffset=startPos*m_descriptorValues.m_noiseScale;
     glm::vec3 position=scaledOffset;
@@ -876,15 +880,15 @@ unsigned int EquiRectWorldGenerator<_Grid>::generateChunk(const glm::vec3 &start
 
 //    m_continentPerlin->FillNoiseSetMap(heightMap.data(), xMap.data(), yMap.data(), zMap.data(), lodChunkSize.x, lodChunkSize.y, 1);
     buildHeightMap(startPos, lodChunkSize, stride);
-    if(blockHeightMap.size()!=heightMap.size())
-        blockHeightMap.resize(heightMap.size());
-    if(blockScaleMap.size()!=heightMap.size())
-        blockScaleMap.resize(heightMap.size());
+    if(m_threadStorage.blockHeightMap.size()!=m_threadStorage.heightMap.size())
+        m_threadStorage.blockHeightMap.resize(m_threadStorage.heightMap.size());
+    if(m_threadStorage.blockScaleMap.size()!=m_threadStorage.heightMap.size())
+        m_threadStorage.blockScaleMap.resize(m_threadStorage.heightMap.size());
 
     int chunkMapSize=HastyNoise::AlignedSize(lodChunkSize.x*lodChunkSize.y*lodChunkSize.z, m_simdLevel);
 
 //    std::vector<float> layerMap(chunkMapSize);
-    layerMap.resize(chunkMapSize);
+    m_threadStorage.layerMap.resize(chunkMapSize);
 
 //    m_layersPerlin->FillNoiseSet(layerMap.data(), offset.x, offset.y, offset.z, _Chunk::sizeX::value, _Chunk::sizeY::value, _Chunk::sizeZ::value);
 
@@ -908,8 +912,8 @@ unsigned int EquiRectWorldGenerator<_Grid>::generateChunk(const glm::vec3 &start
             float heightBase=bi_lerp(neighborHeight[0], neighborHeight[1], neighborHeight[2], neighborHeight[3], influencePos.x, influencePos.y);
             float influenceScale=abs(heightBase-0.5f)*scale;
 
-            blockHeightMap[heightIndex]=(heightBase-influenceScale)*heightScale;
-            blockScaleMap[heightIndex]=influenceScale*heightScale;
+            m_threadStorage.blockHeightMap[heightIndex]=(heightBase-influenceScale)*heightScale;
+            m_threadStorage.blockScaleMap[heightIndex]=influenceScale*heightScale;
 //            blockHeight[heightIndex]=(int)(heightMap[heightIndex]*heightScale)+heightBase;
 
             heightIndex++;
@@ -931,7 +935,7 @@ unsigned int EquiRectWorldGenerator<_Grid>::generateChunk(const glm::vec3 &start
             for(int x=0; x<ChunkType::sizeX::value; x+=stride)
             {
                 unsigned int blockType;
-                int blockHeight=blockHeightMap[heightIndex]+(heightMap[heightIndex]*blockScaleMap[heightIndex]);// (int)(heightMap[heightIndex]*heightScale)+seaLevel;
+                int blockHeight=m_threadStorage.blockHeightMap[heightIndex]+(m_threadStorage.heightMap[heightIndex]*m_threadStorage.blockScaleMap[heightIndex]);// (int)(heightMap[heightIndex]*heightScale)+seaLevel;
 
 //                if(position.z > heightMap[heightIndex]) //larger than height map, air
                 if(blockZ>blockHeight)
@@ -968,6 +972,9 @@ unsigned int EquiRectWorldGenerator<_Grid>::generateChunk(const glm::vec3 &start
 template<typename _Grid>
 unsigned int EquiRectWorldGenerator<_Grid>::generateRegion(const glm::vec3 &startPos, const glm::ivec3 &regionSize, void *buffer, size_t bufferSize, size_t lod)
 {
+    if(!m_threadStorage.regionVectorSet)
+        m_threadStorage.regionVectorSet=std::make_unique<HastyNoise::VectorSet>(m_simdLevel);
+
     size_t stride=glm::pow(2u, (unsigned int)lod);
     glm::ivec2 lodSize=glm::ivec2(regionSize.x, regionSize.y)/(int)stride;
 
@@ -976,8 +983,8 @@ unsigned int EquiRectWorldGenerator<_Grid>::generateRegion(const glm::vec3 &star
 
     int heightMapSize=HastyNoise::AlignedSize(lodSize.x*lodSize.y, m_simdLevel);
 
-    regionHeightMap.resize(heightMapSize);
-    regionVectorSet->SetSize(heightMapSize);
+    m_threadStorage.regionHeightMap.resize(heightMapSize);
+    m_threadStorage.regionVectorSet->SetSize(heightMapSize);
 
     size_t index=0;
     glm::vec3 mapPos;
@@ -996,14 +1003,14 @@ unsigned int EquiRectWorldGenerator<_Grid>::generateRegion(const glm::vec3 &star
 
             glm::vec3 pos=getCylindricalCoords(size.x, size.y, mapPos);
 
-            regionVectorSet->xSet[index]=pos.x;
-            regionVectorSet->ySet[index]=pos.y;
-            regionVectorSet->zSet[index]=pos.z;
+            m_threadStorage.regionVectorSet->xSet[index]=pos.x;
+            m_threadStorage.regionVectorSet->ySet[index]=pos.y;
+            m_threadStorage.regionVectorSet->zSet[index]=pos.z;
             index++;
         }
     }
 
-    m_continentPerlin->FillSet(regionHeightMap.data(), regionVectorSet.get());
+    m_continentPerlin->FillSet(m_threadStorage.regionHeightMap.data(), m_threadStorage.regionVectorSet.get());
 
     index=0;
     for(int y=0; y<regionSize.y; y+=stride)
@@ -1011,7 +1018,7 @@ unsigned int EquiRectWorldGenerator<_Grid>::generateRegion(const glm::vec3 &star
         for(int x=0; x<regionSize.x; x+=stride)
         {
             unsigned int blockType;
-            int blockHeight=(int)(regionHeightMap[index]*heightScale)+seaLevel;
+            int blockHeight=(int)(m_threadStorage.regionHeightMap[index]*heightScale)+seaLevel;
 
             if((blockHeight<startPos.z)||(blockHeight>startPos.z+regionSize.z))
                 blockType=0;
@@ -1110,12 +1117,13 @@ void EquiRectWorldGenerator<_Grid>::buildHeightMap(const glm::vec3 &startPos, co
 {
     int heightMapSize=HastyNoise::AlignedSize(lodSize.x*lodSize.y, m_simdLevel);
 
-    heightMap.resize(heightMapSize);
-    xMap.resize(heightMapSize);
-    yMap.resize(heightMapSize);
-    zMap.resize(heightMapSize);
+    m_threadStorage.heightMap.resize(heightMapSize);
+    m_threadStorage.xMap.resize(heightMapSize);
+    m_threadStorage.yMap.resize(heightMapSize);
+    m_threadStorage.zMap.resize(heightMapSize);
 
-    vectorSet->SetSize(heightMapSize);
+    if(m_threadStorage.vectorSet->size !=heightMapSize)
+        m_threadStorage.vectorSet->SetSize(heightMapSize);
 
     size_t index=0;
     glm::vec3 mapPos;
@@ -1131,14 +1139,14 @@ void EquiRectWorldGenerator<_Grid>::buildHeightMap(const glm::vec3 &startPos, co
 
             glm::vec3 pos=getCylindricalCoords(size.x, size.y, mapPos);
 
-            vectorSet->xSet[index]=pos.x;
-            vectorSet->ySet[index]=pos.y;
-            vectorSet->zSet[index]=pos.z;
+            m_threadStorage.vectorSet->xSet[index]=pos.x;
+            m_threadStorage.vectorSet->ySet[index]=pos.y;
+            m_threadStorage.vectorSet->zSet[index]=pos.z;
             index++;
         }
     }
 
-    m_continentPerlin->FillSet(heightMap.data(), vectorSet.get());
+    m_continentPerlin->FillSet(m_threadStorage.heightMap.data(), m_threadStorage.vectorSet.get());
 //    m_continentPerlin->FillNoiseSetMap(heightMap.data(), xMap.data(), yMap.data(), zMap.data(), lodSize.x, lodSize.y, 1);
 }
 

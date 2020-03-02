@@ -186,6 +186,14 @@ void ActiveVolume<_Grid, _Container, _Index>::initVolumeInfo()
         }
         ++chunkIndex.z;
     }
+
+    generateUpdateOrder();
+}
+
+template<typename _Grid, typename _Container, typename _Index>
+void ActiveVolume<_Grid, _Container, _Index>::generateUpdateOrder()
+{
+    spiralIndex(m_volumeSize, m_updateOrder);
 }
 
 template<typename _Grid, typename _Container, typename _Index>
@@ -513,7 +521,7 @@ void ActiveVolume<_Grid, _Container, _Index>::getRegion(const glm::ivec3 &start,
                     container->setAction(RenderAction::Idle);
                     container->setHandle(handle);
 #ifdef DEBUG_RENDERERS
-                    Log::debug("MainThread - Container %x %s setHandle %x", container, renderIndex.pos().c_str(), handle.get());
+                    Log::debug("MainThread - Container %llx %s setHandle %llx", container, renderIndex.pos().c_str(), handle.get());
 #endif//DEBUG_RENDERERS
                     load.emplace_back(m_volume[index].lod, container);
                 }
@@ -567,7 +575,7 @@ void ActiveVolume<_Grid, _Container, _Index>::getMissingContainers(LoadRequests 
                     container->setAction(RenderAction::Idle);
                     container->setHandle(handle);
 #ifdef DEBUG_RENDERERS
-                    Log::debug("MainThread - Get missing Container %x %s setHandle", container, renderIndex.pos().c_str());
+                    Log::debug("MainThread - Get missing Container %llx %s setHandle", container, renderIndex.pos().c_str());
 #endif//DEBUG_RENDERERS
                     load.emplace_back(m_volume[index].lod, container);
                 }
@@ -805,7 +813,7 @@ typename ActiveVolume<_Grid, _Container, _Index>::ContainerType *ActiveVolume<_G
     ContainerType *container=getContainer();
     
 #ifdef DEBUG_RENDERERS
-    Log::debug("MainThread - getFreeContainer Container %x", container);
+    Log::debug("MainThread - getFreeContainer Container %llx", container);
 #endif//DEBUG_RENDERERS
 
     return container;
@@ -819,7 +827,7 @@ void ActiveVolume<_Grid, _Container, _Index>::releaseFreeContainer(ContainerType
 //    if(mesh.valid)
 //        m_meshHandler->releaseMesh(mesh);
 #ifdef DEBUG_RENDERERS
-    Log::debug("MainThread - Container %x release Handle %x action: %d", container, container->getHandle().get(), container->getAction());
+    Log::debug("MainThread - Container %llx release Handle %llx action: %d", container, container->getHandle().get(), container->getAction());
 #endif//DEBUG_RENDERERS
 
     container->clear();

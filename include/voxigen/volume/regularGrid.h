@@ -138,7 +138,7 @@ public:
 
     glm::mat4 &getTransform() { return m_transform; }
 
-    void updateProcessQueue() { m_processQueue.updateQueue(); }
+//    void updateProcessQueue() { m_processQueue.updateQueue(); }
     void processThread();
 
     bool processRequest(process::Request *request);

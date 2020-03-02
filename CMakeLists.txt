@@ -234,6 +234,7 @@ set(voxigen_volume
     include/voxigen/volume/cell.h
     include/voxigen/volume/chunk.h
     include/voxigen/volume/chunkFunctions.h
+    src/volume/chunkFunctions.cpp
     include/voxigen/volume/chunkHandle.h
     include/voxigen/volume/chunkHandle.inl
     include/voxigen/volume/dataHandler.h
@@ -244,8 +245,10 @@ set(voxigen_volume
     include/voxigen/volume/gridFunctions.h
     include/voxigen/volume/handleState.h
     include/voxigen/volume/region.h
+    include/voxigen/volume/regionChunkIndex.h
     include/voxigen/volume/regionHandle.h
     include/voxigen/volume/regionHandle.inl
+    include/voxigen/volume/regionIndex.h
     include/voxigen/volume/regular2DGrid.h
     src/volume/regular2DGrid.cpp
     include/voxigen/volume/regularGrid.h
@@ -264,6 +267,8 @@ set(voxigen_source
     src/object.cpp
 #    include/voxigen/processQueue.h
 #    include/voxigen/processQueue.inl
+    include/voxigen/processRequests.h
+    src/processRequests.cpp
     include/voxigen/processingThread.h
     src/processingThread.cpp
     include/voxigen/queueThread.h

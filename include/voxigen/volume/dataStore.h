@@ -166,7 +166,7 @@ private:
 //    rapidjson::Document m_configDocument;
 
 //Updated chunks
-    UpdateQueue *m_updateQueue;
+//    UpdateQueue *m_updateQueue;
 };
 
 } //namespace voxigen

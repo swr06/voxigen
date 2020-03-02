@@ -1,4 +1,5 @@
 #include "voxigen/queueThread.h"
+#include "voxigen/fileio/log.h"
 
 namespace voxigen
 {
@@ -60,14 +61,28 @@ void QueueThread::updateQueue(RequestQueue &queue, RequestQueue &cancelQueue, Re
         if(!queue.empty())
         {
             if(resort)//we are going to resort so just insert them
+            {
+#ifdef DEBUG_THREAD
+                for(process::Request *request:queue)
+                    Log::debug("ProcessThread bulk inserting chunk %llx", request->data.chunk.handle);
+#endif//DEBUG_RENDERERS
                 m_queue.insert(m_queue.end(), queue.begin(), queue.end());
+                queue.clear();
+            }
             else
                 insertRequests(m_queue, queue);
             notify=true;
         }
 
+        if(resort)
+            resortQueue(m_queue);
+
         if(!m_completedQueue.empty())
         {
+#ifdef DEBUG_THREAD
+            for(process::Request *request:m_completedQueue)
+                Log::debug("ProcessThread completed request %llx", request);
+#endif//DEBUG_THREAD
             completedQueue.insert(completedQueue.end(), m_completedQueue.begin(), m_completedQueue.end());
             m_completedQueue.clear();
         }
@@ -93,6 +108,9 @@ void QueueThread::process()
 
             if(request)
             {
+#ifdef DEBUG_THREAD
+                Log::debug("ProcessThread request complete %llx", request);
+#endif//DEBUG_THREAD
                 m_completedQueue.push_back(request);
                 m_completeEvent->notify_all();
                 request=nullptr;
@@ -111,6 +129,9 @@ void QueueThread::process()
             }
         }
 
+#ifdef DEBUG_THREAD
+        Log::debug("ProcessThread processing request %llx", request);
+#endif//DEBUG_THREAD
         processRequest(request);
     }
 }
@@ -119,6 +140,9 @@ void QueueThread::insertRequests(RequestQueue &queue, RequestQueue &requests)
 {
     for(process::Request *request:requests)
     {
+#ifdef DEBUG_THREAD
+        Log::debug("ProcessThread inserting chunk %llx", request->data.chunk.handle);
+#endif//DEBUG_RENDERERS
         queue.push_back(request);
         std::push_heap(queue.begin(), queue.end(), process::Compare());
     }

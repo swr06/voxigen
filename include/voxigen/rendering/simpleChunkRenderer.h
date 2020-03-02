@@ -109,13 +109,13 @@ public:
     bool incrementCopy();
     void incrementMesh()
     {
-        assert(m_meshRequestCount<2);
-        m_meshRequestCount++;
+//        assert(m_meshRequestCount<2);
+//        m_meshRequestCount++;
     }
     void decrementMesh()
     {
-        assert(m_meshRequestCount>0);
-        m_meshRequestCount--;
+//        assert(m_meshRequestCount>0);
+//        m_meshRequestCount--;
     }
     
     void draw(const glm::ivec3 &offset);

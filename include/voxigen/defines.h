@@ -3,11 +3,16 @@
 
 #include <set>
 #include <cstdint>
-//#define DEBUG_ALLOCATION
+#define DEBUG_ALLOCATION
 //#define LOG_PROCESS_QUEUE
 //#define DEBUG_DRAW_CALLS
 //#define DEBUG_RENDERERS
 //#define DEBUG_MESH
+//#define DEBUG_THREAD
+//#define DEBUG_REQUESTS
+
+#define MEMORY_CHECK
+//#define MEMORY_CHECK assert(_CrtCheckMemory());
 
 namespace voxigen
 {

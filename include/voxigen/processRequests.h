@@ -4,6 +4,8 @@
 #include "voxigen/voxigen_export.h"
 #include "voxigen/volume/gridFunctions.h"
 
+#include "voxigen/meshes/chunkTextureMesh.h"
+
 #include <glm/glm.hpp>
 
 #include <functional>
@@ -17,6 +19,8 @@ namespace process
 enum Type
 {
     UpdatePos,
+    GenerateRegion,
+    CancelGenerateRegion,
     Generate,
     CancelGenerate,
     Read,
@@ -24,7 +28,8 @@ enum Type
     Write,
     CancelWrite,
     Mesh,
-    CancelMesh
+    CancelMesh,
+    MeshReturn
 };
 
 namespace Priority
@@ -33,6 +38,7 @@ const size_t CancelRead=10;
 const size_t CancelWrite=10;
 const size_t CancelGenerate=10;
 const size_t CancelMesh=10;
+const size_t MeshReturn=10;
 
 const size_t UpdatePos=15;
 
@@ -62,10 +68,22 @@ struct Position
 //    TextureAtlas *textureAtlas;
 //};
 
+struct Region
+{
+    void *handle;
+    size_t lod;
+};
+
 struct Chunk
 {
     void *handle;
     size_t lod;
+};
+
+struct BuildMesh
+{
+    void *renderer;
+    ChunkTextureMesh *mesh;
 };
 
 struct Request
@@ -80,7 +98,9 @@ struct Request
 
     union Data
     {
+        Region region;
         Chunk chunk;
+        BuildMesh buildMesh;
     } data;
 
     glm::ivec3 &getRegion() { return position.region; }
@@ -97,7 +117,6 @@ struct Request
 };
 
 typedef std::function<bool(Request *)> Callback;
-typedef std::vector<Request *> RequestQueue;
 
 struct Compare
 {
@@ -125,6 +144,8 @@ struct Compare
 };
 
 }//namespace process
+
+typedef std::vector<process::Request *> RequestQueue;
 
 }//namespace voxigen
 

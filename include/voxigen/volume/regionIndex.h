@@ -9,8 +9,8 @@ struct RegionIndex
 {
     typedef std::shared_ptr<RegionHandle<_Region>> Handle;
 
-    RegionIndex(){}
-    RegionIndex(const glm::ivec3 &index):index(index){}
+    RegionIndex() {}
+    RegionIndex(const glm::ivec3 &index):index(index) {}
 
     template<typename _Grid>
     static Handle getHandle(_Grid *grid, const RegionIndex<_Region> &index)
@@ -122,5 +122,7 @@ glm::ivec3 operator-(const RegionIndex<_Region> &value1, const glm::ivec3 &value
 {
     return value1.index-value2;
 }
+
+}//namespace voxigen
 
 #endif //_voxigen_regionIndex_h_

@@ -16,6 +16,8 @@
 #include "voxigen/rendering/voxigen_gltext.h"
 #include "voxigen/rendering/nativeGL.h"
 
+#include <generic/objectHeap.h>
+
 #include <string>
 #include <algorithm>
 #include <glm/glm.hpp>
@@ -74,11 +76,11 @@ public:
 //    typedef prep::RequestMesh<_Grid, RegionRendererType> RegionRequestMesh;
 
 //    typedef RenderPrepThread<bool, ChunkRendererType> MesherThread;
-//    struct MeshRequestInfo
-//    {
-//        typename MesherThread::Request *request;
-//        MeshBuffer meshBuffer;
-//    };
+    struct MeshRequestInfo
+    {
+        process::Request *request;
+        MeshBuffer meshBuffer;
+    };
 
     SimpleRenderer(GridType *grid);
     ~SimpleRenderer();
@@ -103,6 +105,8 @@ public:
     void setCameraChunk(const glm::ivec3 &regionIndex, const glm::ivec3 &chunkIndex);
     void setViewRadius(const glm::ivec3 &radius);
     void setPlayerChunk(const glm::ivec3 &regionIndex, const glm::ivec3 &chunkIndex);
+
+    size_t getRendererCount();
 //    void updateChunks();
 
     void setTextureAtlas(SharedTextureAtlas textureAtlas) { m_textureAtlas=textureAtlas; m_textureAtlasDirty=true; }
@@ -148,13 +152,15 @@ public:
 
     std::vector<std::string> getShaderFileNames();
 
+    bool buildMesh(process::Request *request);
+
 private:
     void updateChunkHandles(bool &regionsUpdated, bool &chunksUpdated);
     void updatePrepChunks();
 
-    void processChunkMesh(typename MesherThread::Request *request);
+    void processChunkMesh(process::Request *request);
 
-    void uploadMesh(typename MesherThread::Request *request);
+    void uploadMesh(process::Request *request);
     void completeMeshUploads();
 
 //    MesherThread m_mesherThread;
@@ -210,7 +216,7 @@ private:
 //    SearchMap m_searchMap;
 //    
 //    bool m_updateChunks;
-    std::vector<typename MesherThread::Request *> m_completedRequest;
+    std::vector<process::Request *> m_completedRequest;
 
     std::vector<ChunkRenderType *> m_addedChunkRenderers;
     std::vector<ChunkRenderType *> m_updatedChunkRenderers;
@@ -268,6 +274,7 @@ private:
     unsigned int m_instanceVertices;
     unsigned int m_instanceTexCoords;
 
+    generic::ObjectHeap<ChunkTextureMesh> m_meshHeap;
     std::vector<MeshRequestInfo> m_meshUpdate;
 
     //render prep thread/queue
@@ -284,6 +291,8 @@ private:
     size_t m_chunksLoading;
     size_t m_chunksMeshing;
     size_t m_meshUploading;
+
+    static thread_local ChunkTextureMesh m_threadScratchMesh;
 };
 
 }//namespace voxigen

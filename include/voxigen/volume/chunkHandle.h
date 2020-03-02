@@ -7,6 +7,7 @@
 
 #ifdef DEBUG_ALLOCATION
 #include <glog/logging.h>
+#include <atomic>
 #endif//DEBUG_ALLOCATION
 
 #ifndef NDEBUG
@@ -21,10 +22,6 @@ class Generator;
 
 template<typename _Cell, size_t _ChunkSizeX, size_t _ChunkSizeY, size_t _ChunkSizeZ, size_t _RegionSizeX, size_t _RegionSizeY, size_t _RegionSizeZ, bool _Thread>
 class RegularGrid;
-
-#ifdef DEBUG_ALLOCATION
-std::atomic<int> allocated=0;
-#endif
 
 template<typename _Chunk>
 class ChunkHandle
@@ -156,6 +153,10 @@ private:
     std::thread::id m_actionThreadId;
     bool m_actionThreadIdSet;
 #endif
+#ifdef DEBUG_ALLOCATION
+    static std::atomic<int> allocated;
+#endif
+
 };
 
 } //namespace voxigen

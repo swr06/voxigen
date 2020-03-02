@@ -109,6 +109,21 @@ struct EquiRectWorldGeneratorHeader
     unsigned int size;
 };
 
+struct ThreadStorage
+{
+    std::vector<float> heightMap;
+    std::vector<float> blockHeightMap;
+    std::vector<float> blockScaleMap;
+    std::vector<float> xMap;
+    std::vector<float> yMap;
+    std::vector<float> zMap;
+    std::vector<float> layerMap;
+    std::unique_ptr<HastyNoise::VectorSet> vectorSet;
+
+    std::vector<float> regionHeightMap;
+    std::unique_ptr<HastyNoise::VectorSet> regionVectorSet;
+};
+
 template<typename _Grid>
 class EquiRectWorldGenerator
 {
@@ -199,17 +214,18 @@ private:
     //    noise::module::Perlin m_layersPerlin;
 
         //convert these to scratch buffer request as this is not thread safe
-    static std::vector<float> heightMap;
-    static std::vector<float> blockHeightMap;
-    static std::vector<float> blockScaleMap;
-    static std::vector<float> xMap;
-    static std::vector<float> yMap;
-    static std::vector<float> zMap;
-    static std::vector<float> layerMap;
-    static std::unique_ptr<HastyNoise::VectorSet> vectorSet;
-
-    static std::vector<float> regionHeightMap;
-    static std::unique_ptr<HastyNoise::VectorSet> regionVectorSet;
+//    static std::vector<float> heightMap;
+//    static std::vector<float> blockHeightMap;
+//    static std::vector<float> blockScaleMap;
+//    static std::vector<float> xMap;
+//    static std::vector<float> yMap;
+//    static std::vector<float> zMap;
+//    static std::vector<float> layerMap;
+//    static std::unique_ptr<HastyNoise::VectorSet> vectorSet;
+//
+//    static std::vector<float> regionHeightMap;
+//    static std::unique_ptr<HastyNoise::VectorSet> regionVectorSet;
+    static thread_local ThreadStorage m_threadStorage;
 
     //timing
     double allocationTime=0.0;

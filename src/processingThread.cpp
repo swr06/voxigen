@@ -33,7 +33,8 @@ ProcessThread &getProcessThread()
 
 ProcessThread::ProcessThread():
     m_ioThread(&m_event),
-    m_workerThread(&m_event)
+    m_workerThread(&m_event),
+    m_requests(64)
 #ifndef NDEBUG
     , m_requestThreadIdSet(false)
 #endif
@@ -42,6 +43,11 @@ ProcessThread::ProcessThread():
 
     processChunkRequest=std::bind(&ProcessThread::defaultCallback, this, std::placeholders::_1);
     processMeshRequest=std::bind(&ProcessThread::defaultCallback, this, std::placeholders::_1);
+}
+
+void ProcessThread::setRequestSize(size_t size)
+{
+    m_requests.setMaxSize(size);
 }
 
 void ProcessThread::setSizes(glm::ivec3 &regionSize, glm::ivec3 &chunkSize)
@@ -78,11 +84,15 @@ void ProcessThread::updateQueues(RequestQueue &completedRequests)
         {
             m_requestThreadQueue.insert(m_requestThreadQueue.end(), m_requestQueue.begin(), m_requestQueue.end());
             m_requestQueue.clear();
+//#ifdef DEBUG_THREAD
+//            for(process::Request *request:m_requestThreadQueue)
+//                Log::debug("ProcessThread m_requestThreadQueue requests %llx", request->data.chunk.handle);
+//#endif//DEBUG_RENDERERS
             update=true;
         }
 
         //get all completed request
-        if(!m_completedThreadQueue.empty())
+        if(!m_requestsComplete.empty())
         {
             completedRequests.insert(completedRequests.end(), m_requestsComplete.begin(), m_requestsComplete.end());
             m_requestsComplete.clear();
@@ -130,13 +140,16 @@ void ProcessThread::stop()
     m_workerThread.stop();
 }
 
-void ProcessThread::updatePosition(const glm::ivec3 &region, const glm::ivec3 &chunk)
+bool ProcessThread::updatePosition(const glm::ivec3 &region, const glm::ivec3 &chunk)
 {
-    assert(checkRequestThread());
+    process::Request *request=getRequest();
 
-    process::Request *request=m_requests.get();
+#ifdef DEBUG_REQUESTS
+    Log::debug("updatePosition get request %llx", request);
+#endif
 
-    assert(request);
+    if(!request)
+        return false;
 
     request->type=process::Type::UpdatePos;
     request->priority=process::Priority::UpdatePos;
@@ -144,17 +157,44 @@ void ProcessThread::updatePosition(const glm::ivec3 &region, const glm::ivec3 &c
     request->position.region=region;
     request->position.chunk=chunk;
 
-    m_requestQueue.push_back(request);
-    m_event.notify_all();
+    insertRequest(request);
+    return true;
 }
 
-void ProcessThread::requestChunkAction(void *chunkHandle, size_t lod, process::Type type, size_t priority, const glm::ivec3 &regionIndex, const glm::ivec3 &chunkIndex)
+bool ProcessThread::requestMeshAction(process::Type type, size_t priority, void *renderer, ChunkTextureMesh *mesh, const glm::ivec3 &regionIndex, const glm::ivec3 &chunkIndex)
 {
-    assert(checkRequestThread());
+    process::Request *request=getRequest();
 
-    process::Request *request=m_requests.get();
+#ifdef DEBUG_REQUESTS
+    Log::debug("requestMeshAction get request %llx", request);
+#endif
 
-    assert(request);
+    if(!request)
+        return false;
+
+    request->type=type;
+    request->priority=priority;
+
+    request->position.region=regionIndex;
+    request->position.chunk=chunkIndex;
+
+    request->data.buildMesh.renderer=(void *)renderer;
+    request->data.buildMesh.mesh=mesh;
+
+    insertRequest(request);
+    return true;
+}
+
+bool ProcessThread::requestChunkAction(process::Type type, size_t priority, void *chunkHandle, size_t lod, const glm::ivec3 &regionIndex, const glm::ivec3 &chunkIndex)
+{
+    process::Request *request=getRequest();
+
+#ifdef DEBUG_REQUESTS
+    Log::debug("requestChunkAction get request %llx", request);
+#endif
+
+    if(!request)
+        return false;
 
     request->type=type;
     request->priority=priority;
@@ -164,6 +204,23 @@ void ProcessThread::requestChunkAction(void *chunkHandle, size_t lod, process::T
 
     request->data.chunk.handle=(void *)chunkHandle;
     request->data.chunk.lod=lod;
+
+    insertRequest(request);
+    return true;
+}
+
+process::Request *ProcessThread::getRequest()
+{
+    assert(checkRequestThread());
+
+    return m_requests.get();
+}
+
+void ProcessThread::insertRequest(process::Request *request)
+{
+    assert(checkRequestThread());
+
+    assert(std::find(m_requestQueue.begin(), m_requestQueue.end(), request)==m_requestQueue.end());
 
     m_requestQueue.push_back(request);
     m_event.notify_all();
@@ -188,6 +245,7 @@ void ProcessThread::processThread()
     RequestQueue ioCancelQueue;
     RequestQueue workerQueue;
     RequestQueue workerCancelQueue;
+    RequestQueue meshWaitQueue;
 
 //    RequestQueue priorityQueue;
 
@@ -204,10 +262,10 @@ void ProcessThread::processThread()
             run=m_run;
 
             //check if any new request have been added.
-            if(!m_requestQueue.empty())
+            if(!m_requestThreadQueue.empty())
             {
-                requestQueue.insert(requestQueue.end(), m_requestQueue.begin(), m_requestQueue.end());
-                m_requestQueue.clear();
+                requestQueue.insert(requestQueue.end(), m_requestThreadQueue.begin(), m_requestThreadQueue.end());
+                m_requestThreadQueue.clear();
             }
 
             //while we have the lock update anything that is complete
@@ -221,6 +279,13 @@ void ProcessThread::processThread()
                 m_event.wait(lock);
 
             //            continue;
+        }
+
+        //push any mesh requests
+        if(!meshWaitQueue.empty())
+        {
+            requestQueue.insert(requestQueue.end(), meshWaitQueue.begin(), meshWaitQueue.end());
+            meshWaitQueue.clear();
         }
 
         //need to sort request into current thread, ioThread and general workerThread
@@ -241,8 +306,26 @@ void ProcessThread::processThread()
             case process::Type::CancelWrite:
                 ioCancelQueue.push_back(request);
             case process::Type::Generate:
-            case process::Type::Mesh:
                 workerQueue.push_back(request);
+                break;
+            case process::Type::Mesh:
+                {
+                    ChunkTextureMesh *mesh=m_meshHeap.get();
+
+                    if(mesh)
+                    {
+                        request->data.buildMesh.mesh=mesh;
+                        workerQueue.push_back(request);
+                    }
+                    else
+                    {
+                        //no mesh, need to wait for mesh
+                        meshWaitQueue.push_back(request);
+                    }
+                }
+                break;
+            case process::Type::MeshReturn:
+                currentQueue.push_back(request);
                 break;
             case process::Type::CancelGenerate:
             case process::Type::CancelMesh:
@@ -258,17 +341,38 @@ void ProcessThread::processThread()
         {
             process::Request *request=currentQueue[i];
 
-            process::Compare::currentRegion=request->position.region;
-            process::Compare::currentChunk=request->position.chunk;
+            if(request->type==process::Type::UpdatePos)
+            {
+                process::Compare::currentRegion=request->position.region;
+                process::Compare::currentChunk=request->position.chunk;
 
-            forceResort=true;
+#ifdef DEBUG_THREAD
+                Log::debug("ProcessThread running update pos");
+#endif//DEBUG_RENDERERS
+
+                forceResort=true;
+            }
+            else if(request->type==process::Type::MeshReturn)
+            {
+#ifdef DEBUG_THREAD
+                Log::debug("ProcessThread releasing mesh %llx", request->data.buildMesh.mesh);
+#endif//DEBUG_RENDERERS
+                m_meshHeap.release(request->data.buildMesh.mesh);
+                request->data.buildMesh.mesh=nullptr;
+            }
 
             completedQueue.push_back(request);
         }
         currentQueue.clear();
 
         m_ioThread.updateQueue(ioQueue, ioCancelQueue, completedQueue, forceResort);
-        m_workerThread.updateQueue(ioQueue, ioCancelQueue, completedQueue, forceResort);
+        assert(ioQueue.size()==0);
+//#ifdef DEBUG_THREAD
+//        for(process::Request *request:workerQueue)
+//            Log::debug("ProcessThread queue requests %llx", request->data.chunk.handle);
+//#endif//DEBUG_RENDERERS
+        m_workerThread.updateQueue(workerQueue, workerCancelQueue, completedQueue, forceResort);
+        assert(workerQueue.size()==0);
     }
 }
 

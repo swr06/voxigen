@@ -10,6 +10,8 @@
 #include "voxigen/fileio/filesystem.h"
 #include "voxigen/fileio/log.h"
 
+#include "voxigen/processingThread.h"
+
 #include "generic/watchFiles.h"
 #include "generic/log.h"
 
@@ -122,6 +124,9 @@ public:
 
 int main(int argc, char ** argv)
 {
+    _CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF|_CRTDBG_CHECK_ALWAYS_DF);
+    _CrtSetReportMode(_CRT_ERROR, _CRTDBG_MODE_DEBUG);
+
 #ifndef NDEBUG
     std::vector<std::string>  chunkRendererShaders=ChunkRenderer::getShaderFileNames();
 
@@ -230,9 +235,9 @@ int main(int argc, char ** argv)
     framebuffer_size_callback(window, width, height);
 
     World world;
-    ProcessThread &processThread=getProcessThread();
+    voxigen::ProcessThread &processThread=voxigen::getProcessThread();
 
-    processThread.setSizes(details::regionSize<typename World::RegionType>(), details::chunkSize<typename World::ChunkType>())
+    processThread.setSizes(voxigen::details::regionSize<typename World::RegionType>(), voxigen::details::chunkSize<typename World::ChunkType>());
     processThread.start();
     fs::path worldsDirectory("worlds");
 
@@ -283,18 +288,20 @@ int main(int argc, char ** argv)
     renderingOptions.camera.setPosition(renderingOptions.playerRegion, regionPos);
     renderingOptions.player.setPosition(renderingOptions.playerRegionIndex, regionPos);
 
-    world.updatePosition(renderingOptions.playerRegionIndex, renderingOptions.playerChunkIndex);
-
     voxigen::SimpleRenderer<World> renderer(&world);
 
     g_renderer=&renderer;
+
     renderer.setTextureAtlas(textureAtlas);
 
     renderer.setCamera(&renderingOptions.camera);
     renderer.build();
+    renderer.setViewRadius(glm::ivec3(128, 128, 64));
 //    renderer.setViewRadius(glm::ivec3(512, 512, 128));
-    renderer.setViewRadius(glm::ivec3(2048, 2048, 512));
+//    renderer.setViewRadius(glm::ivec3(2048, 2048, 512));
+    processThread.setRequestSize((renderer.getRendererCount()*3)/2);
 
+    world.updatePosition(renderingOptions.playerRegionIndex, renderingOptions.playerChunkIndex);
     renderer.setCameraChunk(renderingOptions.playerRegionIndex, renderingOptions.playerChunkIndex);
     renderer.setPlayerChunk(renderingOptions.playerRegionIndex, renderingOptions.playerChunkIndex);
 //    lastUpdateAdded=renderer.updateChunks();

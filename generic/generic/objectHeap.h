@@ -14,6 +14,7 @@ public:
 
     void setMaxSize(size_t maxSize);
     size_t getMaxSize() { return m_objects.size(); }
+    size_t getFreeSize() { return m_freeObjects.size(); }
 
     _Object *get();
     void release(_Object *object);
@@ -35,42 +36,14 @@ ObjectHeap<_Object>::ObjectHeap(size_t maxSize)
 template<typename _Object>
 void ObjectHeap<_Object>::setMaxSize(size_t maxSize)
 {
-    if(m_objects.empty())
-    {
-        m_objects.resize(maxSize);
-        m_freeObjects.resize(maxSize);
+    //cant have any objects out in the resize
+    assert(m_freeObjects.size()==m_objects.size());
 
-        for(size_t i=0; i<m_objects.size(); ++i)
-            m_freeObjects[i]=&(m_objects[i]);
-    }
-    else
-    {
-        //cant change on the fly, would have to make sure all the requests are back
-        assert(false);
+    m_objects.resize(maxSize);
+    m_freeObjects.resize(maxSize);
 
-
-        if(maxSize>m_objects.size())
-        { 
-            //enlarging so just add more
-            size_t currentSize=m_objects.size();
-            size_t freeIndex=m_freeObjects.size();
-
-            m_objects.resize(maxSize);
-            m_freeObjects.resize(maxSize);
-            
-            for(size_t i=currentSize; i<maxSize; ++i)
-            {
-                m_freeObjects[freeIndex]=&(m_objects[i]);
-                freeIndex++;
-            }
-        }
-        else
-        {
-            //need to implement this
-            assert(false);
-        }
-
-    }
+    for(size_t i=0; i<m_objects.size(); ++i)
+        m_freeObjects[i]=&(m_objects[i]);
 }
 
 template<typename _Object>
@@ -88,6 +61,8 @@ _Object *ObjectHeap<_Object>::get()
 template<typename _Object>
 void ObjectHeap<_Object>::release(_Object *object)
 {
+    assert(std::find(m_freeObjects.begin(), m_freeObjects.end(), object)==m_freeObjects.end());
+
     m_freeObjects.push_back(object);
 }
 

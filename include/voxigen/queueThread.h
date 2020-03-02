@@ -9,8 +9,6 @@
 #include <queue>
 #include <mutex>
 
-VOXIGEN_EXPORT unsigned int getProcessorCount();
-
 namespace voxigen
 {
 

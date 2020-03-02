@@ -29,7 +29,7 @@ struct RegionChunkIndex
 
     static glm::ivec3 difference(const RegionChunkIndex &index, const RegionChunkIndex &index2)
     {
-//        glm::ivec3 regionSize=details::regionSize<_Region>();
+        //        glm::ivec3 regionSize=details::regionSize<_Region>();
 
         return details::difference<_Region>(index.region, index.chunk, index2.region, index2.chunk);
     }
@@ -144,5 +144,7 @@ glm::ivec3 operator-(const RegionChunkIndex<_Region, _Chunk> &value1, const glm:
 {
     return value1.region-value2;
 }
+
+}//namespace voxigen
 
 #endif //_voxigen_regionChunkIndex_h_

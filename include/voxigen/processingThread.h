@@ -7,6 +7,7 @@
 #include "voxigen/volume/chunkHandle.h"
 #include "voxigen/processRequests.h"
 #include "voxigen/queueThread.h"
+#include "voxigen/fileio/log.h"
 
 #include <generic/objectHeap.h>
 
@@ -21,13 +22,14 @@ namespace voxigen
 
 VOXIGEN_EXPORT unsigned int getProcessorCount();
 
-class ProcessThread
+class VOXIGEN_EXPORT ProcessThread
 {
 public:
     typedef std::vector<process::Request *> RequestQueue;
 
     ProcessThread();
 
+    void setRequestSize(size_t size);
     void setSizes(glm::ivec3 &regionSize, glm::ivec3 &chunkSize);
 
     void setIoRequestCallback(process::Callback callback);
@@ -40,33 +42,37 @@ public:
     void stop();
 
     //thread actions
-    void updatePosition(const glm::ivec3 &region, const glm::ivec3 &chunk);
+    bool updatePosition(const glm::ivec3 &region, const glm::ivec3 &chunk);
 
     template<typename _Object>
-    void requestChunkGenerate(_Object *chunkHandle, size_t lod)
-    {   requestChunkAction((void *)chunkHandle, lod, process::Type::Generate, process::Priority::Generate, chunkHandle->regionIndex(), chunkHandle->chunkIndex());}
+    bool requestChunkGenerate(_Object *chunkHandle, size_t lod);
+    
     template<typename _Object>
-    void cancelChunkGenerate(_Object *chunkHandle)
-    {   requestChunkAction((void *)chunkHandle, 0, process::Type::CancelGenerate, process::Priority::CancelGenerate, chunkHandle->regionIndex(), chunkHandle->chunkIndex());}
+    bool cancelChunkGenerate(_Object *chunkHandle);
+    
     template<typename _Object>
-    void requestChunkRead(_Object *chunkHandle, size_t lod)
-    {   requestChunkAction((void *)chunkHandle, lod, process::Type::Read, process::Priority::Read, chunkHandle->regionIndex(), chunkHandle->chunkIndex());}
+    bool requestChunkRead(_Object *chunkHandle, size_t lod);
+    
     template<typename _Object>
-    void cancelChunkRead(_Object *chunkHandle)
-    {   requestChunkAction((void *)chunkHandle, 0, process::Type::CancelRead, process::Priority::CancelRead, chunkHandle->regionIndex(), chunkHandle->chunkIndex());}
+    bool cancelChunkRead(_Object *chunkHandle);
+    
     template<typename _Object>
-    void requestChunkWrite(_Object *chunkHandle, size_t lod)
-    {   requestChunkAction((void *)chunkHandle, lod, process::Type::Write, process::Priority::Write, chunkHandle->regionIndex(), chunkHandle->chunkIndex());}
+    bool requestChunkWrite(_Object *chunkHandle, size_t lod);
+    
     template<typename _Object>
-    void cancelChunkWrite(_Object *chunkHandle)
-    {   requestChunkAction((void *)chunkHandle, 0, process::Type::CancelWrite, process::Priority::CancelWrite, chunkHandle->regionIndex(), chunkHandle->chunkIndex());}
+    bool cancelChunkWrite(_Object *chunkHandle);
+    
     template<typename _Object>
-    void requestChunkMesh(_Object *chunkHandle)
-    {   requestChunkAction((void *)chunkHandle, 0, process::Type::Mesh, process::Priority::Mesh, chunkHandle->regionIndex(), chunkHandle->chunkIndex());}
+    bool requestChunkMesh(_Object *renderer);
+    
     template<typename _Object>
-    void cancelChunkMesh(_Object *chunkHandle)
-    {   requestChunkAction((void *)chunkHandle, 0, process::Type::CancelMesh, process::Priority::CancelMesh, chunkHandle->regionIndex(), chunkHandle->chunkIndex());}
+    bool cancelChunkMesh(_Object *renderer);
 
+    template<typename _Object>
+    bool returnMesh(_Object *renderer, ChunkTextureMesh *mesh);
+
+    process::Request *getRequest();
+    void insertRequest(process::Request *request);
     void releaseRequest(process::Request *request);
 
     //coordination thread
@@ -78,7 +84,8 @@ public:
     bool defaultCallback(process::Request *request) { return true; }
 
 private:
-    void requestChunkAction(void *chunkHandle, size_t lod, process::Type type, size_t priority, const glm::ivec3 &regionIndex, const glm::ivec3 &chunkIndex);
+    bool requestMeshAction(process::Type type, size_t priority, void *renderer, ChunkTextureMesh *mesh, const glm::ivec3 &regionIndex, const glm::ivec3 &chunkIndex);
+    bool requestChunkAction(process::Type type, size_t priority, void *chunkHandle, size_t lod, const glm::ivec3 &regionIndex, const glm::ivec3 &chunkIndex);
 
 //    void updatePriorityQueue();
 
@@ -99,7 +106,7 @@ private:
 #ifndef NDEBUG
     //used to verify single thread access
     std::thread::id m_requestThreadId;
-    bool m_request ThreadIdSet;
+    bool m_requestThreadIdSet;
 #endif
 
 //can only be accessed under lock
@@ -109,14 +116,97 @@ private:
     RequestQueue m_completedThreadQueue;
 #ifndef NDEBUG
     //used to verify single thread access
-    std::thread::id m_requestThreadId;
+//    std::thread::id m_requestThreadId;
 #endif
     
+    generic::ObjectHeap<ChunkTextureMesh> m_meshHeap;
+
     QueueThread m_ioThread;
     QueueThread m_workerThread;
 };
 
 VOXIGEN_EXPORT ProcessThread &getProcessThread();
+
+template<typename _Object>
+bool ProcessThread::requestChunkGenerate(_Object *chunkHandle, size_t lod)
+{
+#ifdef DEBUG_THREAD
+    Log::debug("MainThread - ProcessThread request generate chunk(%d, %d): %llx, %d", chunkHandle->regionHash(), chunkHandle->hash(), chunkHandle, lod);
+#endif//DEBUG_RENDERERS
+    return requestChunkAction(process::Type::Generate, process::Priority::Generate, (void *)chunkHandle, lod, chunkHandle->regionIndex(), chunkHandle->chunkIndex()); 
+}
+
+template<typename _Object>
+bool ProcessThread::cancelChunkGenerate(_Object *chunkHandle)
+{ 
+#ifdef DEBUG_THREAD
+    Log::debug("MainThread - ProcessThread cancel generate chunk: %llx", chunkHandle);
+#endif//DEBUG_RENDERERS
+    return requestChunkAction(process::Type::CancelGenerate, process::Priority::CancelGenerate, (void *)chunkHandle, 0, chunkHandle->regionIndex(), chunkHandle->chunkIndex()); 
+}
+
+template<typename _Object>
+bool ProcessThread::requestChunkRead(_Object *chunkHandle, size_t lod)
+{ 
+#ifdef DEBUG_THREAD
+    Log::debug("MainThread - ProcessThread request read chunk: %llx, %d", chunkHandle, lod);
+#endif//DEBUG_RENDERERS
+    return requestChunkAction(process::Type::Read, process::Priority::Read, (void *)chunkHandle, lod, chunkHandle->regionIndex(), chunkHandle->chunkIndex()); 
+}
+
+template<typename _Object>
+bool ProcessThread::cancelChunkRead(_Object *chunkHandle)
+{ 
+#ifdef DEBUG_THREAD
+    Log::debug("MainThread - ProcessThread cancel read chunk: %llx", chunkHandle);
+#endif//DEBUG_RENDERERS
+    return requestChunkAction(process::Type::CancelRead, process::Priority::CancelRead, (void *)chunkHandle, 0, chunkHandle->regionIndex(), chunkHandle->chunkIndex()); 
+}
+
+template<typename _Object>
+bool ProcessThread::requestChunkWrite(_Object *chunkHandle, size_t lod)
+{ 
+#ifdef DEBUG_THREAD
+    Log::debug("MainThread - ProcessThread request write chunk: %llx, %d", chunkHandle, lod);
+#endif//DEBUG_RENDERERS
+    return requestChunkAction(process::Type::Write, process::Priority::Write, (void *)chunkHandle, lod, chunkHandle->regionIndex(), chunkHandle->chunkIndex()); 
+}
+
+template<typename _Object>
+bool ProcessThread::cancelChunkWrite(_Object *chunkHandle)
+{ 
+#ifdef DEBUG_THREAD
+    Log::debug("MainThread - ProcessThread cancel write chunk: %llx", chunkHandle);
+#endif//DEBUG_RENDERERS
+    return requestChunkAction(process::Type::CancelWrite, process::Priority::CancelWrite, (void *)chunkHandle, 0, chunkHandle->regionIndex(), chunkHandle->chunkIndex()); 
+}
+
+template<typename _Object>
+bool ProcessThread::requestChunkMesh(_Object *renderer)
+{ 
+#ifdef DEBUG_THREAD
+    Log::debug("MainThread - ProcessThread request mesh chunk: %llx, %llx", renderer->getHandle().get(), renderer);
+#endif//DEBUG_RENDERERS
+    return requestMeshAction(process::Type::Mesh, process::Priority::Mesh, (void *)renderer, nullptr, renderer->getRegionIndex(), renderer->getChunkIndex());
+}
+
+template<typename _Object>
+bool ProcessThread::cancelChunkMesh(_Object *renderer)
+{ 
+#ifdef DEBUG_THREAD
+    Log::debug("MainThread - ProcessThread cancel mesh chunk: %llx, %llx", renderer->getHandle().get(), renderer);
+#endif//DEBUG_RENDERERS
+    return requestMeshAction(process::Type::CancelMesh, process::Priority::CancelMesh, (void *)renderer, nullptr, renderer->getRegionIndex(), renderer->getChunkIndex()); 
+}
+
+template<typename _Object>
+bool ProcessThread::returnMesh(_Object *renderer, ChunkTextureMesh *mesh)
+{
+#ifdef DEBUG_THREAD
+    Log::debug("MainThread - ProcessThread mesh return: %llx", mesh);
+#endif//DEBUG_RENDERERS
+    return requestMeshAction(process::Type::MeshReturn, process::Priority::MeshReturn, (void *)nullptr , mesh, renderer->getRegionIndex(), renderer->getChunkIndex());
+}
 
 }//namespace voxigen
 

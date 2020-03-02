@@ -69,7 +69,7 @@ bool RenderPrepThread<_DataType, _Object>::requestMesh(_Object *object, TextureA
     request->priority=prep::Priority::Mesh;
     Request::ObjectMesh &objectMesh=request->getObjectMesh();
     
-    object->incrementMesh();
+//    object->incrementMesh();
     objectMesh.object=object;
     objectMesh.mesh=nullptr;
     objectMesh.textureAtlas=textureAtlas;

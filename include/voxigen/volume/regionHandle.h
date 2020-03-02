@@ -61,7 +61,7 @@ public:
 //    };
 
 //    RegionHandle(RegionHash regionHash, GridDescriptors<_Grid> *descriptors, GeneratorQueue<_Grid> *generatorQueue, DataStore<_Grid> *dataStore, UpdateQueue *updateQueue);
-    RegionHandle(RegionHash regionHash, IGridDescriptors *descriptors, UpdateQueue *updateQueue);
+    RegionHandle(RegionHash regionHash, IGridDescriptors *descriptors);
 
     const glm::ivec3 &getRegionIndex() { return m_index; }
 
