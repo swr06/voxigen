@@ -20,6 +20,7 @@ template<typename _Cell, size_t _x, size_t _y, size_t _z>
 class Chunk//:public BoundingBox
 {
 public:
+    Chunk();
     Chunk(ChunkHash hash, unsigned int revision, const glm::ivec3 &index, glm::vec3 gridOffset, size_t lod);
     ~Chunk();
 
@@ -29,6 +30,9 @@ public:
     typedef std::integral_constant<size_t, _y> sizeY;
     typedef std::integral_constant<size_t, _z> sizeZ;
     
+    void setChunk(ChunkHash hash, const glm::ivec3 &index, const glm::vec3 gridOffset);
+    void allocate(size_t lod);
+
     ChunkHash getHash() const { return m_hash; }
     Cells &getCells() { return m_cells; }
     
@@ -63,6 +67,17 @@ using UniqueChunk=std::unique_ptr<Chunk<_Cell, _x, _y, _z>>;
 
 
 template<typename _Cell, size_t _x, size_t _y, size_t _z>
+Chunk<_Cell, _x, _y, _z>::Chunk():
+    m_hash(0),
+    m_revision(0),
+    m_validCells(0),
+    m_lod(0),
+    m_hasNeighbors(false),
+    m_neighbors(9)
+{
+}
+
+template<typename _Cell, size_t _x, size_t _y, size_t _z>
 Chunk<_Cell, _x, _y, _z>::Chunk(ChunkHash hash, unsigned int revision, const glm::ivec3 &index, glm::vec3 gridOffset, size_t lod):
     //BoundingBox(dimensions, transform),
     m_hash(hash),
@@ -93,6 +108,22 @@ Chunk<_Cell, _x, _y, _z>::~Chunk()
     Log::debug("Chunk::~Chunk %llx hash:%d  free cells - data %llx\n", this, m_hash, m_cells.data());
 #endif
 };
+
+template<typename _Cell, size_t _x, size_t _y, size_t _z>
+void Chunk<_Cell, _x, _y, _z>::setChunk(ChunkHash hash, const glm::ivec3 &index, const glm::vec3 gridOffset)
+{
+    m_hash=hash;
+    m_index=index;
+    m_gridOffset=gridOffset;
+}
+
+template<typename _Cell, size_t _x, size_t _y, size_t _z>
+void Chunk<_Cell, _x, _y, _z>::allocate(size_t lod)
+{
+    m_lod=lod;
+    size_t size=(_x*_y*_z)/(m_lod+1);
+    m_cells.resize(size);
+}
 
 template<typename _Cell, size_t _x, size_t _y, size_t _z>
 _Cell &Chunk<_Cell, _x, _y, _z>::getCell(const glm::vec3 &position)

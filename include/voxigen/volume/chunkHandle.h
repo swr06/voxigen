@@ -58,6 +58,7 @@ public:
     glm::ivec3 size() { return glm::ivec3(ChunkType::sizeX::value, ChunkType::sizeY::value, ChunkType::sizeZ::value); }
 
     HandleState state(){ return m_state; }
+    HandleState getState() { return m_state; }
     void setState(HandleState state)
     {
 #ifndef NDEBUG

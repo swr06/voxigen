@@ -87,6 +87,7 @@ public:
     void setChunk(SharedChunkHandle chunk);
     void setHandle(SharedChunkHandle chunk);
     SharedChunkHandle getHandle() { return m_chunkHandle; }
+    bool isValid() { return (bool)m_chunkHandle; }
 
     void setTextureAtlas(SharedTextureAtlas textureAtlas) { m_textureAtlas=textureAtlas; }
     void setEmpty();

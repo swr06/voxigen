@@ -326,11 +326,19 @@ bool DataStore<_Grid>::loadChunk(ChunkHandleType *chunkHandle, size_t lod, bool 
         {
             //we dont have it in memory so we need to load or generate it
             if(!chunkHandle->cachedOnDisk())
+            {
 //                value=generate(chunkHandle, lod);
                 value=getProcessThread().requestChunkGenerate(chunkHandle, lod);
+                if(value)
+                    chunkHandle->setAction(HandleAction::Generating);
+            }
             else
+            {
 //                value=read(chunkHandle, lod);
                 value=getProcessThread().requestChunkRead(chunkHandle, lod);
+                if(value)
+                    chunkHandle->setAction(HandleAction::Reading);
+            }
         }
     }
 

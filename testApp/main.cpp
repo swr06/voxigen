@@ -124,8 +124,10 @@ public:
 
 int main(int argc, char ** argv)
 {
+#ifdef VOXIGEN_MEMORY_DEBUG
     _CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF|_CRTDBG_CHECK_ALWAYS_DF);
     _CrtSetReportMode(_CRT_ERROR, _CRTDBG_MODE_DEBUG);
+#endif
 
 #ifndef NDEBUG
     std::vector<std::string>  chunkRendererShaders=ChunkRenderer::getShaderFileNames();
@@ -296,8 +298,8 @@ int main(int argc, char ** argv)
 
     renderer.setCamera(&renderingOptions.camera);
     renderer.build();
-    renderer.setViewRadius(glm::ivec3(128, 128, 64));
-//    renderer.setViewRadius(glm::ivec3(512, 512, 128));
+//    renderer.setViewRadius(glm::ivec3(128, 128, 64));
+    renderer.setViewRadius(glm::ivec3(512, 512, 128));
 //    renderer.setViewRadius(glm::ivec3(2048, 2048, 512));
     processThread.setRequestSize((renderer.getRendererCount()*3)/2);
 
@@ -714,18 +716,18 @@ void updatePosition(World &world)
 void updateChunkInfo()
 {
     std::ostringstream chunkInfoStream;
-    auto volumeInfo=g_renderer->getVolumeInfo();
-
-    for(auto &info:volumeInfo)
-    {
-        if(!info.container)
-            continue;
-
-        std::string chunkInfo;
-
-        info.container->updateInfo(chunkInfo);
-        chunkInfoStream<<chunkInfo;
-    }
+//    auto volumeInfo=g_renderer->getVolumeInfo();
+//
+//    for(auto &info:volumeInfo)
+//    {
+//        if(!info.container)
+//            continue;
+//
+//        std::string chunkInfo;
+//
+//        info.container->updateInfo(chunkInfo);
+//        chunkInfoStream<<chunkInfo;
+//    }
 
 //    debugScreen->setChunkInfo(chunkInfoStream.str());
 }

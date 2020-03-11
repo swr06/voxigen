@@ -237,6 +237,8 @@ set(voxigen_volume
     src/volume/chunkFunctions.cpp
     include/voxigen/volume/chunkHandle.h
     include/voxigen/volume/chunkHandle.inl
+    include/voxigen/volume/containerVolume.h
+    include/voxigen/volume/containerVolume.inl
     include/voxigen/volume/dataHandler.h
     include/voxigen/volume/dataStore.h
     include/voxigen/volume/dataStore.inl

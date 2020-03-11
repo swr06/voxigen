@@ -86,7 +86,7 @@ void DebugScreen::updateChunkInfo(World *world, WorldRenderer *renderer)
 {
     bool show=true;
 
-    auto volumeInfo=renderer->getVolumeInfo();
+//    auto volumeInfo=renderer->getVolumeInfo();
     std::string info;
 
     ImGui::SetNextWindowPos(ImVec2(m_width-350, 0));
@@ -100,16 +100,16 @@ void DebugScreen::updateChunkInfo(World *world, WorldRenderer *renderer)
     const glm::vec3 &cameraPos=m_renderingOptions->camera.getPosition();
     glm::ivec3 cameraChunkIndex=world->getChunkIndex(cameraPos);
 
-    for(auto &info:volumeInfo)
-    {
-        if(!info.container)
-            continue;
-
-        if(info.container->getChunkIndex() == cameraChunkIndex)
-            cameraChunk=info.container;
-        if(info.container->getChunkIndex() == m_renderingOptions->playerChunkIndex)
-            playerChunk=info.container;
-    }
+//    for(auto &info:volumeInfo)
+//    {
+//        if(!info.container)
+//            continue;
+//
+//        if(info.container->getChunkIndex() == cameraChunkIndex)
+//            cameraChunk=info.container;
+//        if(info.container->getChunkIndex() == m_renderingOptions->playerChunkIndex)
+//            playerChunk=info.container;
+//    }
 
     ImGui::Text("Chunks");
     ImGui::Text("  Renderers: %d", renderer->getChunksLoaded());

@@ -38,7 +38,7 @@ void ChunkHandle<_Chunk>::generate(IGridDescriptors *descriptors, Generator *gen
     if(validCells<=0)
     {
 #ifdef DEBUG_ALLOCATION
-        allocated++;
+        allocated--;
         Log::debug("ChunkHandle::generate %llx hash:(%d, %d) empty deleting chunk data:%llx", this, m_regionHash, m_hash, m_chunk.get());
 #endif
         m_chunk.reset(nullptr);//drop chunks that are empty

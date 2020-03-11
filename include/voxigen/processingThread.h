@@ -62,8 +62,8 @@ public:
     template<typename _Object>
     bool cancelChunkWrite(_Object *chunkHandle);
     
-    template<typename _Object>
-    bool requestChunkMesh(_Object *renderer);
+    template<typename _Object, typename _Mesh>
+    bool requestChunkMesh(_Object *renderer, _Mesh *mesh);
     
     template<typename _Object>
     bool cancelChunkMesh(_Object *renderer);
@@ -181,13 +181,13 @@ bool ProcessThread::cancelChunkWrite(_Object *chunkHandle)
     return requestChunkAction(process::Type::CancelWrite, process::Priority::CancelWrite, (void *)chunkHandle, 0, chunkHandle->regionIndex(), chunkHandle->chunkIndex()); 
 }
 
-template<typename _Object>
-bool ProcessThread::requestChunkMesh(_Object *renderer)
+template<typename _Object, typename _Mesh>
+bool ProcessThread::requestChunkMesh(_Object *renderer, _Mesh *mesh)
 { 
 #ifdef DEBUG_THREAD
     Log::debug("MainThread - ProcessThread request mesh chunk: %llx, %llx", renderer->getHandle().get(), renderer);
 #endif//DEBUG_RENDERERS
-    return requestMeshAction(process::Type::Mesh, process::Priority::Mesh, (void *)renderer, nullptr, renderer->getRegionIndex(), renderer->getChunkIndex());
+    return requestMeshAction(process::Type::Mesh, process::Priority::Mesh, (void *)renderer, mesh, renderer->getRegionIndex(), renderer->getChunkIndex());
 }
 
 template<typename _Object>
@@ -199,14 +199,14 @@ bool ProcessThread::cancelChunkMesh(_Object *renderer)
     return requestMeshAction(process::Type::CancelMesh, process::Priority::CancelMesh, (void *)renderer, nullptr, renderer->getRegionIndex(), renderer->getChunkIndex()); 
 }
 
-template<typename _Object>
-bool ProcessThread::returnMesh(_Object *renderer, ChunkTextureMesh *mesh)
-{
-#ifdef DEBUG_THREAD
-    Log::debug("MainThread - ProcessThread mesh return: %llx", mesh);
-#endif//DEBUG_RENDERERS
-    return requestMeshAction(process::Type::MeshReturn, process::Priority::MeshReturn, (void *)nullptr , mesh, renderer->getRegionIndex(), renderer->getChunkIndex());
-}
+//template<typename _Object>
+//bool ProcessThread::returnMesh(_Object *renderer, ChunkTextureMesh *mesh)
+//{
+//#ifdef DEBUG_THREAD
+//    Log::debug("MainThread - ProcessThread mesh return: %llx", mesh);
+//#endif//DEBUG_RENDERERS
+//    return requestMeshAction(process::Type::MeshReturn, process::Priority::MeshReturn, (void *)nullptr , mesh, renderer->getRegionIndex(), renderer->getChunkIndex());
+//}
 
 }//namespace voxigen
 

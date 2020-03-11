@@ -27,17 +27,17 @@ template<typename _Cell, size_t _ChunkSizeX, size_t _ChunkSizeY, size_t _ChunkSi
 using UniqueChunkMap=std::unordered_map<ChunkHash, UniqueChunk<_Cell, _ChunkSizeX, _ChunkSizeY, _ChunkSizeZ>>;
 
 //inheritable class the carries typedef
-template<typename _Grid, bool grid=false>
-class RegularGridTypes
-{
-public:
-    typedef _Grid GridType;
-    typedef GridDescriptors<GridType> DescriptorType;
-
-    typedef typename GridType::ChunkType ChunkType;
-    typedef ChunkHandle<ChunkType> ChunkHandleType;
-    typedef std::shared_ptr<ChunkHandleType> SharedChunkHandle;
-};
+//template<typename _Grid, bool grid=false>
+//class RegularGridTypes
+//{
+//public:
+//    typedef _Grid GridType;
+//    typedef GridDescriptors<GridType> DescriptorType;
+//
+//    typedef typename GridType::ChunkType ChunkType;
+//    typedef ChunkHandle<ChunkType> ChunkHandleType;
+//    typedef std::shared_ptr<ChunkHandleType> SharedChunkHandle;
+//};
 
 template<typename _Cell, size_t _ChunkSizeX=64, size_t _ChunkSizeY=64, size_t _ChunkSizeZ=64, size_t _RegionSizeX=16, size_t _RegionSizeY=16, size_t _RegionSizeZ=16, bool _Thread=true>
 class RegularGrid
@@ -46,19 +46,23 @@ public:
     RegularGrid();
     ~RegularGrid();
 
+    typedef RegularGrid< _Cell, _ChunkSizeX, _ChunkSizeY, _ChunkSizeZ, _RegionSizeX, _RegionSizeY, _RegionSizeZ> Type;
     typedef RegularGrid< _Cell, _ChunkSizeX, _ChunkSizeY, _ChunkSizeZ, _RegionSizeX, _RegionSizeY, _RegionSizeZ> GridType;
     typedef std::integral_constant<size_t, _ChunkSizeX*_RegionSizeX> regionCellSizeX;
     typedef std::integral_constant<size_t, _ChunkSizeY*_RegionSizeY> regionCellSizeY;
     typedef std::integral_constant<size_t, _ChunkSizeZ*_RegionSizeZ> regionCellSizeZ;
 
     typedef GridDescriptors<GridType> DescriptorType;
+    typedef GridDescriptors<GridType> Descriptor;
     typedef _Cell CellType;
 
     typedef Chunk<_Cell, _ChunkSizeX, _ChunkSizeY, _ChunkSizeZ> ChunkType;
+    typedef Chunk<_Cell, _ChunkSizeX, _ChunkSizeY, _ChunkSizeZ> Chunk;
     typedef ChunkHandle<ChunkType> ChunkHandleType;
     typedef std::shared_ptr<ChunkHandleType> SharedChunkHandle;
 
     typedef Region<ChunkType, _RegionSizeX, _RegionSizeY, _RegionSizeZ> RegionType;
+    typedef Region<ChunkType, _RegionSizeX, _RegionSizeY, _RegionSizeZ> Region;
     typedef RegionHandle<RegionType> RegionHandleType;
     typedef std::shared_ptr<RegionHandleType> SharedRegionHandle;
 

@@ -3,138 +3,100 @@
 namespace voxigen
 {
 
-template<typename _Grid, typename _Container, typename _Index>
-ActiveVolume<_Grid, _Container, _Index>::ActiveVolume(GridType *grid, DescriptorType *descriptors, GetContainer getContainer, ReleaseContainer releaseContainer):
-m_grid(grid),
-m_descriptors(descriptors),
-//m_viewRadius(64),
-getContainer(getContainer),
-releaseContainer(releaseContainer)
+template<typename _Container>
+glm::ivec3 calcVolumeSize(const glm::ivec3 &radius)
 {
-    //make it allocate 512 upfront
- //   m_containerQueue.setMaxSize(512);
- //   m_containerQueue.setGrowSize(512);
-    setViewRadius(glm::ivec3(64, 64, 64));
-}
-
-template<typename _Grid, typename _Container, typename _Index>
-ActiveVolume<_Grid, _Container, _Index>::~ActiveVolume()
-{
-
-}
-
-template<typename _Grid, typename _Container, typename _Index>
-void ActiveVolume<_Grid, _Container, _Index>::setViewRadius(const glm::ivec3 &radius)
-{
-    m_viewRadius=radius;
-
-    glm::ivec3 cubeSize=calcVolumeSize(m_viewRadius);
-    m_containerCount=cubeSize.x*cubeSize.y*cubeSize.z;
-//    containerCount=(containerCount/2)*3;
-//    m_containerQueue.setMaxSize(containerCount);
-}
-
-template<typename _Grid, typename _Container, typename _Index>
-glm::ivec3 ActiveVolume<_Grid, _Container, _Index>::calcVolumeSize(const glm::ivec3 &radius)
-{
-    glm::ivec3 cubeSize;
-//  glm::ivec3 chunkSize=m_descriptors->getChunkSize();
+    glm::ivec3 volumeSize;
     glm::ivec3 renderSize=_Container::getSize();
 
-    cubeSize=(radius)/renderSize;
+    volumeSize=(radius)/renderSize;
 
-    if(cubeSize.x<=1)
-        cubeSize.x++;
-    if(cubeSize.y<=1)
-        cubeSize.y++;
-    if(cubeSize.z<=1)
-        cubeSize.z++;
+    if(volumeSize.x<=1)
+        volumeSize.x++;
+    if(volumeSize.y<=1)
+        volumeSize.y++;
+    if(volumeSize.z<=1)
+        volumeSize.z++;
 
     //make everything odd
-    if(cubeSize.x%2==0)
-        cubeSize.x++;
-    if(cubeSize.y%2==0)
-        cubeSize.y++;
-    if(cubeSize.z%2==0)
-        cubeSize.z++;
+    if(volumeSize.x%2==0)
+        volumeSize.x++;
+    if(volumeSize.y%2==0)
+        volumeSize.y++;
+    if(volumeSize.z%2==0)
+        volumeSize.z++;
 
-    return cubeSize;
+    return volumeSize;
 }
 
-template<typename _Grid, typename _Container, typename _Index>
-void ActiveVolume<_Grid, _Container, _Index>::init(const Index &index, LoadRequests &load, std::vector<ContainerType *> &release)
+template<typename _Grid, typename _ChunkContainer, typename _RegionContainer>
+ActiveVolume<_Grid, _ChunkContainer, _RegionContainer>::ActiveVolume(Grid *grid, Descriptor *descriptors):
+m_grid(grid),
+m_descriptors(descriptors),
+m_regionVolume(grid, descriptors, std::bind(&ActiveVolume<_Grid, _ChunkContainer, _RegionContainer>::getRegionContainer, this), 
+    std::bind(&ActiveVolume<_Grid, _ChunkContainer, _RegionContainer>::releaseRegionContainer, this, std::placeholders::_1)),
+m_chunkVolume(grid, descriptors, std::bind(&ActiveVolume<_Grid, _ChunkContainer, _RegionContainer>::getChunkContainer, this), 
+    std::bind(&ActiveVolume<_Grid, _ChunkContainer, _RegionContainer>::releaseChunkContainer, this, std::placeholders::_1))
 {
-    glm::ivec3 regionSize=m_descriptors->getRegionSize();
-//    glm::ivec3 chunkSize=m_descriptors->getChunkSize();
-//    m_volumeSize=m_viewRadius/chunkSize;
-//
-//    //make everything odd
-//    if(m_volumeSize.x%2==0)
-//        m_volumeSize.x++;
-//    if(m_volumeSize.y%2==0)
-//        m_volumeSize.y++;
-//    if(m_volumeSize.z%2==0)
-//        m_volumeSize.z++;
-    
-    //release any currently existing container
-    if(!m_volume.empty())
-        releaseRegion(glm::ivec3(0, 0, 0), m_volumeSize, release);
-    
-    m_volumeSize=calcVolumeSize(m_viewRadius);
-    m_volume.resize(m_volumeSize.x*m_volumeSize.y*m_volumeSize.z);
+ }
 
-    for(auto &info:m_volume)
-    {
-        info.container=nullptr;
-    }
-//    std::fill(m_volume.begin(), m_volume.end(), nullptr);
-
-    m_volumeCenterIndex=(m_volumeSize/2);
-//    glm::ivec3 centerPos=chunkIndex;
-
-//    glm::ivec3 startRegion;// =regionIndex;
-//    glm::ivec3 startChunk;// =m_chunkIndex-m_volumeCenter+glm::ivec3(1, 1, 1);
-    Index startIndex;
-    size_t renderPos=0;
-
-//    Index::offset(regionIndex, chunkIndex, -m_volumeCenterIndex, startRegion, startChunk);
-    startIndex=Index::offset(index, -m_volumeCenterIndex);
-
-    initVolumeInfo();
-
-//    while(startChunk.x<0)
-//    {
-//        startRegion.x--;
-//        startChunk.x+=regionSize.x;
-//    }
-//    while(startChunk.y<0)
-//    {
-//        startRegion.y--;
-//        startChunk.y+=regionSize.y;
-//    }
-//    while(startChunk.z<0)
-//    {
-//        startRegion.z--;
-//        startChunk.z+=regionSize.z;
-//    }
-//    getRegion(glm::ivec3(0, 0, 0), startRegion, startChunk, m_volumeSize);
-    getRegion(glm::ivec3(0, 0, 0), startIndex, m_volumeSize, load);
-//    updateRegion(startRegion, startChunk, m_volumeSize);
-
-    m_index=index;
-//    m_chunkIndex=chunkIndex;
-}
-
-template<typename _Grid, typename _Container, typename _Index>
-void ActiveVolume<_Grid, _Container, _Index>::updateCamera(const Index &index)
+template<typename _Grid, typename _ChunkContainer, typename _RegionContainer>
+ActiveVolume<_Grid, _ChunkContainer, _RegionContainer>::~ActiveVolume()
 {
-//    m_cameraRegionIndex=regionIndex;
-//    m_cameraChunkIndex=chunkIndex;
-    m_cameraIndex=index;
+
 }
 
-template<typename _Grid, typename _Container, typename _Index>
-void ActiveVolume<_Grid, _Container, _Index>::initVolumeInfo()
+template<typename _Grid, typename _ChunkContainer, typename _RegionContainer>
+void ActiveVolume<_Grid, _ChunkContainer, _RegionContainer>::setViewRadius(const glm::ivec3 &radius)
+{
+    m_regionVolume.setViewRadius(radius*10);
+    m_chunkVolume.setViewRadius(radius);
+}
+
+
+template<typename _Grid, typename _ChunkContainer, typename _RegionContainer>
+void ActiveVolume<_Grid, _ChunkContainer, _RegionContainer>::init(const glm::ivec3 &regionIndex, const glm::ivec3 &chunkIndex)
+{
+    m_regionIndex.index=regionIndex;
+    m_chunkIndex.region=regionIndex;
+    m_chunkIndex.chunk=chunkIndex;
+
+    m_reigonVolume.init(m_regionIndex);
+    m_chunkVolume.init(m_chunkIndex);
+}
+
+template<typename _Grid, typename _ChunkContainer, typename _RegionContainer>
+_RegionContainer *ActiveVolume<_Grid, _ChunkContainer, _RegionContainer>::getRegionContainer()
+{
+    return m_regionContainers.get();
+}
+
+template<typename _Grid, typename _ChunkContainer, typename _RegionContainer>
+void ActiveVolume<_Grid, _ChunkContainer, _RegionContainer>::releaseRegionContainer(RegionContainer *container)
+{
+    m_regionContainers.release(container);
+}
+
+template<typename _Grid, typename _ChunkContainer, typename _RegionContainer>
+_ChunkContainer *ActiveVolume<_Grid, _ChunkContainer, _RegionContainer>::getChunkContainer()
+{
+    return m_chunkContainers.get();
+}
+
+template<typename _Grid, typename _ChunkContainer, typename _RegionContainer>
+void ActiveVolume<_Grid, _ChunkContainer, _RegionContainer>::releaseChunkContainer(ChunkContainer *container)
+{
+    m_chunkContainers.release(container);
+}
+
+template<typename _Grid, typename _ChunkContainer, typename _RegionContainer>
+void ActiveVolume<_Grid, _ChunkContainer, _RegionContainer>::initRegionVolumeInfo()
+{
+
+}
+
+template<typename _Grid, typename _ChunkContainer, typename _RegionContainer>
+void ActiveVolume<_Grid, _ChunkContainer, _RegionContainer>::initChunkVolumeInfo()
 {
     glm::ivec3 center(m_volumeSize.x/2, m_volumeSize.y/2, m_volumeSize.z/2);
     glm::ivec3 chunkIndex(0, 0, 0);
@@ -190,649 +152,296 @@ void ActiveVolume<_Grid, _Container, _Index>::initVolumeInfo()
     generateUpdateOrder();
 }
 
-template<typename _Grid, typename _Container, typename _Index>
-void ActiveVolume<_Grid, _Container, _Index>::generateUpdateOrder()
+template<typename _Grid, typename _ChunkContainer, typename _RegionContainer>
+void ActiveVolume<_Grid, _ChunkContainer, _RegionContainer>::updatePosition(const glm::ivec3 &regionIndex, const glm::ivec3 &chunkIndex)
 {
-    spiralIndex(m_volumeSize, m_updateOrder);
-}
-
-template<typename _Grid, typename _Container, typename _Index>
-void ActiveVolume<_Grid, _Container, _Index>::update(const Index &index, LoadRequests &load, std::vector<ContainerType *> &release)
-{
-    //no changes, skip update
-//    if((regionIndex==m_regionIndex)&&(chunkIndex==m_chunkIndex))
-//        return;
-    if(m_index==index)
+    if(m_regionIndex.index!=regionIndex)
     {
-        getMissingContainers(load);
-        return;
+        m_regionIndex.index=regionIndex;
+
+//        m_regionVolume.update(m_regionIndex);
     }
 
-//    glm::ivec3 gridRegionSize=m_descriptors->getRegionSize();
-    glm::ivec3 offset=_Index::difference(m_index, index);
-
-    bool rebuild=false;
-    glm::ivec3 direction=glm::abs(offset);
-
-    if(direction.x>m_volumeSize.x/2)
-        rebuild=true;
-    else if(direction.y>m_volumeSize.y/2)
-        rebuild=true;
-    if(direction.z>m_volumeSize.z/2)
-        rebuild=true;
-
-    if(rebuild)
+    if((m_chunkIndex.region!=regionIndex)||(m_chunkIndex.chunk!=chunkIndex))
     {
-        init(index, load, release);
-        return;
-    }
+        m_chunkIndex.region=regionIndex;
+        m_chunkIndex.chunk=chunkIndex;
 
-    glm::ivec3 releaseSize=direction;
-    glm::ivec3 copySize=m_volumeSize-direction;
+        m_chunkVolume.update(m_chunkIndex, m_chunkLoadRequests, m_chunkReleases);
 
-    if(direction.x!=0.0)
-        direction.x=offset.x/direction.x;
-    if(direction.y!=0.0)
-        direction.y=offset.y/direction.y;
-    if(direction.z!=0.0)
-        direction.z=offset.z/direction.z;
-
-    glm::ivec3 dir=direction;
-
-    if(dir.x==0)
-        dir.x=1;
-    if(dir.y==0)
-        dir.y=1;
-    if(dir.z==0)
-        dir.z=1;
-
-    glm::ivec3 copyFrom;
-    glm::ivec3 copyTo;
-
-    if(direction.x<0)
-        copyTo.x=m_volumeSize.x-1;
-    else
-        copyTo.x=0;
-    copyFrom.x=copyTo.x+offset.x;
-
-    if(direction.y<0)
-        copyTo.y=m_volumeSize.y-1;
-    else
-        copyTo.y=0;
-    copyFrom.y=copyTo.y+offset.y;
-
-    if(direction.z<0)
-        copyTo.z=m_volumeSize.z-1;
-    else
-        copyTo.z=0;
-    copyFrom.z=copyTo.z+offset.z;
-
-//release
-    glm::ivec3 regionStart;
-    glm::ivec3 regionSize;
-
-    regionStart.x=0;
-    regionStart.y=0;
-    if(copyTo.z<copyFrom.z)
-        regionStart.z=0;
-    else
-        regionStart.z=m_volumeSize.z-releaseSize.z;
-
-//    regionStart.z=std::min(copyTo.z, copyFrom.z);
-
-    regionSize.x=m_volumeSize.x;
-    regionSize.y=m_volumeSize.y;
-    regionSize.z=releaseSize.z;
-    
-    releaseRegion(regionStart, regionSize, release);
-
-    if(copyTo.z < copyFrom.z)
-        regionStart.z=copyFrom.z;
-    else
-        regionStart.z=0;
-
-    regionSize.z=copySize.z;
-//    regionStart.y=std::min(copyTo.y, copyFrom.y);
-    regionSize.y=releaseSize.y;
-    if(copyTo.y<copyFrom.y)
-        regionStart.y=0;
-    else
-        regionStart.y=m_volumeSize.y-releaseSize.y;
-
-    releaseRegion(regionStart, regionSize, release);
-
-    if(copyTo.y < copyFrom.y)
-        regionStart.y=copyFrom.y;
-    else
-        regionStart.y=0;
-
-    regionSize.y=copySize.y;
-//    regionStart.x=std::min(copyTo.x, copyFrom.x);
-    regionSize.x=releaseSize.x;
-    if(copyTo.x<copyFrom.x)
-        regionStart.x=0;
-    else
-        regionStart.x=m_volumeSize.x-releaseSize.x;
-
-    releaseRegion(regionStart, regionSize, release);
-
-//    size_t index=copyTo.z*(m_volumeSize.y*m_volumeSize.x)+copyTo.y*m_volumeSize.x+copyTo.x;
-//    size_t strideY=(dir.y-dir.x)*m_volumeSize.x;
-//
-//    //release info that is going to be removed
-//    for(size_t z=0; z<releaseSize.z; z++)
-//    {
-//        //take out entire plane
-//        for(size_t y=0; y<m_volumeSize.y; y++)
-//        {
-//            for(size_t x=0; x<m_volumeSize.x; x++)
-//            {
-//                releaseChunkInfo(_volume[indexTo]);
-//                index+=dir.x;
-//            }
-//            index+=strideY;
-//        }
-//    }
-//
-//    size_t alignX=(dir.x)*copySize.x;
-//    strideZ=(dir.z-dir.y)*m_volumeSize.y*m_volumeSize.x;
-//    
-//    for(size_t z=0; z<copySize.z; z++)
-//    {
-//        for(size_t y=0; y<releaseSize.y; y++)
-//        {
-//            for(size_t x=0; x<m_volumeSize.x; x++)
-//            {
-//                releaseChunkInfo(_volume[indexTo]);
-//                index+=dir.x;
-//            }
-//            index+=strideY;
-//        }
-//
-//        for(size_t y=0; y<copySize.y; y++)
-//        {
-//            for(size_t x=0; x<releaseSize.x; x++)
-//            {
-//                releaseChunkInfo(_volume[indexTo]);
-//                index+=dir.x;
-//            }
-//            index+=alignX;
-//            index+=strideY;
-//        }
-//        index+=strideZ;
-//    }
-
-//copy
-    size_t indexTo;
-    size_t indexFrom;
-
-    indexFrom=copyFrom.z*(m_volumeSize.y*m_volumeSize.x)+copyFrom.y*m_volumeSize.x+copyFrom.x;
-    indexTo=copyTo.z*(m_volumeSize.y*m_volumeSize.x)+copyTo.y*m_volumeSize.x+copyTo.x;
-
-    glm::ivec3 stride(dir.x, (dir.y-dir.x)*m_volumeSize.x, (dir.z-dir.y)*m_volumeSize.y*m_volumeSize.x);
-
-    stride.y+=dir.x*(m_volumeSize.x-copySize.x);
-    stride.z+=dir.y*(m_volumeSize.y-copySize.y)*m_volumeSize.x;
-
-    //copy info
-    for(size_t z=0; z<copySize.z; z++)
-    {
-        for(size_t y=0; y<copySize.y; y++)
+        for(ChunkLoadContainer &loadRequest:m_chunkLoadRequests)
         {
-            for(size_t x=0; x<copySize.x; x++)
+            ChunkContainer *container=loadRequest.container;
+
+            if(container->getAction() == RenderAction::Idle)
             {
-//                assert(m_volume[indexTo] == nullptr);
-//                if(m_volume[indexTo])
-//                    m_volume[indexTo]->refCount--;
+                bool loadHandle=false;
+                SharedChunkHandle chunkHandle=container->getHandle();
+                HandleState chunkState=chunkHandle->getState();
 
-                m_volume[indexTo].container=m_volume[indexFrom].container;
- //               m_volume[indexTo]->refCount++;
-
-                indexFrom+=stride.x;
-                indexTo+=stride.x;
-            }
-            indexFrom+=stride.y;
-            indexTo+=stride.y;
-        }
-        indexFrom+=stride.z;
-        indexTo+=stride.z;
-    }
-
-    //add the new render info
-    regionStart.x=0;
-    regionStart.y=0;
-
-    if(copyTo.z<copyFrom.z)
-        regionStart.z=m_volumeSize.z-releaseSize.z;
-    else
-        regionStart.z=0;
-
-    regionSize.x=m_volumeSize.x;
-    regionSize.y=m_volumeSize.y;
-    regionSize.z=releaseSize.z;
-
-//    glm::ivec3 updateRegionIndex;
-//    glm::ivec3 updateChunkIndex;
-    Index updateIndex=Index::offset(index, (regionStart-m_volumeCenterIndex));
-    getRegion(regionStart, updateIndex, regionSize, load);
-
-    if(copyTo.z <= copyFrom.z)
-        regionStart.z=0;
-    else
-        regionStart.z=releaseSize.z;
-
-    regionSize.z=copySize.z;
-    
-    if(copyTo.y<copyFrom.y)
-        regionStart.y=m_volumeSize.y-releaseSize.y;
-    else
-        regionStart.y=0;
-    regionSize.y=releaseSize.y;
-
-    updateIndex=Index::offset(index, (regionStart-m_volumeCenterIndex));
-    getRegion(regionStart, updateIndex, regionSize, load);
-
-    if(copyTo.y <= copyFrom.y)
-        regionStart.y=0;
-    else
-        regionStart.y=releaseSize.y;
-
-    regionSize.y=copySize.y;
-    
-    if(copyTo.x<=copyFrom.x)
-        regionStart.x=m_volumeSize.x-releaseSize.x;
-    else
-        regionStart.x=0;
-    regionSize.x=releaseSize.x;
-
-    updateIndex=Index::offset(index, (regionStart-m_volumeCenterIndex));
-    getRegion(regionStart, updateIndex, regionSize, load);
-
-    m_index=index;
-
-//    if(direction.x < 0)
-//        start.x=
-}
-
-template<typename _Grid, typename _Container, typename _Index>
-void ActiveVolume<_Grid, _Container, _Index>::releaseRegion(const glm::ivec3 &start, const glm::ivec3 &size, std::vector<ContainerType *> &release)
-{
-    size_t index=start.z*(m_volumeSize.y*m_volumeSize.x)+start.y*m_volumeSize.x+start.x;
-    
-    size_t strideX=m_volumeSize.x-size.x;
-    size_t strideY=(m_volumeSize.y-size.y)*m_volumeSize.x;
-
-    for(size_t z=0; z<size.z; z++)
-    {
-        for(size_t y=0; y<size.y; y++)
-        {
-            for(size_t x=0; x<size.x; x++)
-            {
-//                releaseChunkInfo(m_volume[index]);
-                ContainerType *container=m_volume[index].container;
-//
-//                if(container)
-//                {
-////                    container->refCount--;
-//                    releaseInfo(container);
-//                }
-                if(container)
-                    release.push_back(container);
-                m_volume[index].container=nullptr;
-                index++;
-            }
-            index+=strideX;
-        }
-        index+=strideY;
-    }
-}
-
-template<typename _Grid, typename _Container, typename _Index>
-void ActiveVolume<_Grid, _Container, _Index>::getRegion(const glm::ivec3 &start, const Index &startIndex, const glm::ivec3 &size, LoadRequests &load)
-{
-    glm::ivec3 regionSize=m_descriptors->getRegionSize();
-    size_t index=start.z*(m_volumeSize.y*m_volumeSize.x)+start.y*m_volumeSize.x+start.x;
-
-    size_t strideX=m_volumeSize.x-size.x;
-    size_t strideY=(m_volumeSize.y-size.y)*m_volumeSize.x;
-
-    Index renderIndex;
-
-    renderIndex.setZ(startIndex);
-    for(size_t z=0; z<size.z; z++)
-    {
-        renderIndex.setY(startIndex);
-
-        for(size_t y=0; y<size.y; y++)
-        {
-            renderIndex.setX(startIndex);
-
-            for(size_t x=0; x<size.x; x++)
-            {
-                ContainerType *container=getFreeContainer();
-
-//                assert(container);
-
-                if(container)
+                if(chunkHandle->getState() != HandleState::Memory)
+                    loadHandle=true;
+                else
                 {
-                    m_volume[index].container=container;
-                    typename Index::Handle handle=Index::getHandle(m_grid, renderIndex);
+                    if(chunkHandle->getLod() != loadRequest.lod)
+                        loadHandle=true;
+                }
 
-                    container->setAction(RenderAction::Idle);
-                    container->setHandle(handle);
-#ifdef DEBUG_RENDERERS
-                    Log::debug("MainThread - Container %llx %s setHandle %llx", container, renderIndex.pos().c_str(), handle.get());
-#endif//DEBUG_RENDERERS
-                    load.emplace_back(m_volume[index].lod, container);
+                if(loadHandle)
+                {
+#ifdef VOXIGEN_DEBUG_ACTIVEVOLUME
+                    Log::debug("ActiveVolume::updatePosition - Chunk container(%llx, %llx) request load", container, container->getKey().hash);
+#endif
+                    m_loadingChunks++;
+                    m_grid->loadChunk(chunkHandle, loadRequest.lod);
                 }
                 else
                 {
-#ifdef DEBUG_RENDERERS
-                    Log::debug("*****  MainThread - Failed to get container %s", renderIndex.pos().c_str());
-#endif//DEBUG_RENDERERS
-                    m_volume[index].container=nullptr;
+#ifdef VOXIGEN_DEBUG_ACTIVEVOLUME
+                    Log::debug("ActiveVolume::updatePosition - Chunk container(%llx, %llx) failed to request load, already loaded", container, container->getKey().hash);
+#endif
                 }
-
-                index++;
-                renderIndex.incX();
-            }
-
-            index+=strideX;
-            renderIndex.incY();
-        }
-
-        index+=strideY;
-        renderIndex.incZ();
-    }
-}
-
-template<typename _Grid, typename _Container, typename _Index>
-void ActiveVolume<_Grid, _Container, _Index>::getMissingContainers(LoadRequests &load)
-{
-    size_t index=0;
-    Index startIndex=Index::offset(m_index, -m_volumeCenterIndex);
-    Index renderIndex;
-
-    renderIndex.setZ(startIndex);
-    for(size_t z=0; z<m_volumeSize.z; z++)
-    {
-        renderIndex.setY(startIndex);
-        for(size_t y=0; y<m_volumeSize.y; y++)
-        {
-            renderIndex.setX(startIndex);
-            for(size_t x=0; x<m_volumeSize.x; x++)
-            {
-                if(m_volume[index].container==nullptr)
-                {
-                    ContainerType *container=getFreeContainer();
-
-                    if(!container)
-                        continue;
-
-                    m_volume[index].container=container;
-                    typename Index::Handle handle=Index::getHandle(m_grid, renderIndex);
-
-                    container->setAction(RenderAction::Idle);
-                    container->setHandle(handle);
-#ifdef DEBUG_RENDERERS
-                    Log::debug("MainThread - Get missing Container %llx %s setHandle", container, renderIndex.pos().c_str());
-#endif//DEBUG_RENDERERS
-                    load.emplace_back(m_volume[index].lod, container);
-                }
-                renderIndex.incX();
-                ++index;
-            }
-            renderIndex.incY();
-        }
-        renderIndex.incZ();
-    }
-}
-
-//template<typename _Grid, typename _Container, typename _Index>
-//void ActiveVolume<_Grid, _Container, _Index>::updateRegion(glm::ivec3 &startRegionIndex, glm::ivec3 &startChunkIndex, glm::ivec3 &size)
-//{
-//    glm::ivec3 regionIndex;
-//    glm::ivec3 chunkIndex;
-//    size_t renderPos=0;
-//
-//    glm::ivec3 regionSize=m_descriptors->getRegionSize();
-//    glm::ivec3 offset=m_volumeSize-size;
-//
-//    regionIndex.z=startRegionIndex.z;
-//    chunkIndex.z=startChunkIndex.z;
-//
-//    for(size_t z=0; z<size.z; ++z)
-//    {
-//        regionIndex.y=startRegionIndex.y;
-//        chunkIndex.y=startChunkIndex.y;
-//
-//        for(size_t y=0; y<size.y; ++y)
-//        {
-//            regionIndex.x=startRegionIndex.x;
-//            chunkIndex.x=startChunkIndex.x;
-//
-//            for(size_t x=0; x<size.x; ++x)
-//            {
-//                ContainerType *container=m_volume[renderPos];
-//                
-//                //get rid of any existing info/chunks/containers
-//                releaseChunkInfo(container);
-//                m_volume[renderPos]=nullptr;
-//                
-//                Key key(m_descriptors->getRegionHash(regionIndex), m_descriptors->getChunkHash(chunkIndex));
-//                SharedChunkHandle chunkHandle=m_grid->getChunk(key);
-//
-////                m_volumeMap[key.hash]=renderPos;
-//                renderInfo.chunkHandle=chunkHandle;
-//
-//                //if not loaded, load it
-//                if(chunkHandle->state()!=HandleState::Memory)
-//                {
-//                    //make sure we are not already requesting something from it
-//                    if(chunkHandle->action()==HandleAction::Idle)
-//                        m_grid->loadChunk(chunkHandle, 0);
-//                }
-//
-//                //if we dont have a container go ahead and request it
-//                if(renderInfo.container == nullptr)
-//                {
-////                    renderInfo.state=RenderState::RequestContainer;
-////                    m_renderPrepThread->requestContainer(renderInfo.chunkHandle);
-//                    renderInfo.container=m_containerQueue.get([&](ContainerType *container){container->build(); container->buildOutline(m_outlineInstanceId);});
-//
-//                    if(renderInfo.container)
-//                        renderInfo.container->setChunk(chunkHandle);
-//                }
-//
-//                chunkIndex.x++;
-//                
-//                if(chunkIndex.x>=regionSize.x)
-//                {
-//                    chunkIndex.x=0;
-//                    regionIndex.x++;
-//                }
-//                renderPos++;
-//            }
-//            renderPos+=offset.x;
-//
-//            chunkIndex.y++;
-//            if(chunkIndex.y>=regionSize.y)
-//            {
-//                chunkIndex.y=0;
-//                regionIndex.y++;
-//            }
-//        }
-//
-//        renderPos+=offset.y;
-//
-//        chunkIndex.z++;
-//        if(chunkIndex.z>=regionSize.z)
-//        {
-//            chunkIndex.z=0;
-//            regionIndex.z++;
-//        }
-//    }
-//}
-
-//template<typename _Grid, typename _Container, typename _Index>
-//void ActiveVolume<_Grid, _Container, _Index>::draw()
-//{
-//    glm::ivec3 regionIndex=m_index.regionIndex()-(m_index.regionIndex()-m_cameraIndex.regionIndex());
-//
-//    for(auto container:m_volume)
-//    {
-//        if(container)
-//        {
-//            glm::ivec3 regionOffset=container->getRegionIndex()-regionIndex;
-//            glm::ivec3 offset=regionOffset*container->getRegionCellSize();
-//
-//            container->draw(offset);
-//        }
-//    }
-//}
-//
-//template<typename _Grid, typename _Container, typename _Index>
-//void ActiveVolume<_Grid, _Container, _Index>::drawInfo(const glm::mat4x4 &projectionViewMat)
-//{
-//    glm::ivec3 regionIndex=m_index.regionIndex()-(m_index.regionIndex()-m_cameraIndex.regionIndex());
-//
-//    for(auto container:m_volume)
-//    {
-//        if(container)
-//        {
-//            glm::ivec3 regionOffset=container->getRegionIndex()-regionIndex;
-//            glm::ivec3 offset=regionOffset*container->getRegionCellSize();
-//
-//            container->drawInfo(projectionViewMat, offset);
-//        }
-//    }
-//}
-//
-//template<typename _Grid, typename _Container, typename _Index>
-//void ActiveVolume<_Grid, _Container, _Index>::drawOutline()
-//{
-//    glm::ivec3 regionIndex=m_index.regionIndex()-(m_index.regionIndex()-m_cameraIndex.regionIndex());
-//
-//    for(auto container:m_volume)
-//    {
-//        if(container)
-//        {
-//            glm::ivec3 regionOffset=container->getRegionIndex()-regionIndex;
-//            glm::ivec3 offset=regionOffset*container->getRegionCellSize();
-//
-//            container->drawOutline(offset);
-//        }
-//    }
-//}
-
-template<typename _Grid, typename _Container, typename _Index>
-glm::ivec3 ActiveVolume<_Grid, _Container, _Index>::relativeCameraIndex()
-{
-    return m_index.regionIndex()-(m_index.regionIndex()-m_cameraIndex.regionIndex());
-}
-
-template<typename _Grid, typename _Container, typename _Index>
-typename ActiveVolume<_Grid, _Container, _Index>::ContainerType *ActiveVolume<_Grid, _Container, _Index>::getRenderInfo(const Index &index)
-{
-//    glm::ivec3 regionIndex=m_descriptors->getRegionIndex(key.regionHash);
-//    glm::ivec3 chunkIndex=m_descriptors->getChunkIndex(key.chunkHash);
-//    glm::ivec3 gridRegionSize=m_descriptors->getRegionSize();
-//    glm::ivec3 offset=Index::difference(m_index, index, gridRegionSize);
-    glm::ivec3 offset=_Index::difference(m_index, index);
-
-    glm::ivec3 cubeIndex=m_volumeCenterIndex+offset; //0 index;
-
-    if(cubeIndex.x<0)
-        return nullptr;
-    if(cubeIndex.x>=m_volumeSize.x)
-        return nullptr;
-    if(cubeIndex.y<0)
-        return nullptr;
-    if(cubeIndex.y>=m_volumeSize.y)
-        return nullptr;
-    if(cubeIndex.z<0)
-        return nullptr;
-    if(cubeIndex.z>=m_volumeSize.z)
-        return nullptr;
-
-    size_t renderIndex=cubeIndex.z*(m_volumeSize.y*m_volumeSize.x)+cubeIndex.y*m_volumeSize.x+cubeIndex.x;
-    
-#ifndef NDEBUG
-//    if(m_volume[renderIndex])
-//        assert(m_volume[renderIndex]->getChunkHandle()->key().hash==key.hash);
-#endif//NDEBUG
-    
-    return m_volume[renderIndex].container;
-//    auto iter=m_volumeMap.find(key.hash);
-//
-//    if(iter==m_volumeMap.end())
-//        return nullptr;
-//
-//    return &m_volume[iter->second];
-}
-
-template<typename _Grid, typename _Container, typename _Index>
-void ActiveVolume<_Grid, _Container, _Index>::releaseInfo(ContainerType *container)
-{
-    if(!container)
-        return;
-
-//    assert(container->getAction()==RenderAction::Idle);
-    //we are dumping this container so chunk no longer need.
-    if(container->getHandle()->action()!=HandleAction::Idle)
-        Index::cancelLoad(m_grid, container->getHandle());
-
-    //can only release the container if it is not busy
-    if((container->getAction()==RenderAction::Idle) )//&& (container->getChunkHandle()->action()==HandleAction::Idle))
-        releaseFreeContainer(container);
-    else
-        m_containerReleaseQueue.push_back(container);
-}
-
-template<typename _Grid, typename _Container, typename _Index>
-typename ActiveVolume<_Grid, _Container, _Index>::ContainerType *ActiveVolume<_Grid, _Container, _Index>::getFreeContainer()
-{
-    //release any queued containers
-    if(!m_containerReleaseQueue.empty())
-    {
-        for(auto iter=m_containerReleaseQueue.begin(); iter!=m_containerReleaseQueue.end(); )
-        {
-            ContainerType *container=*iter;
-
-            if((container->getAction() == RenderAction::Idle) )//&& (container->getChunkHandle()->action() == HandleAction::Idle))
-            {
-                releaseContainer(container);
-                iter=m_containerReleaseQueue.erase(iter);
             }
             else
-                ++iter;
+            {
+#ifdef VOXIGEN_DEBUG_ACTIVEVOLUME
+                Log::debug("ActiveVolume::updatePosition - Chunk container(%llx, %llx) failed to request load, container busy", container, container->getKey().hash);
+#endif
+            }
         }
     }
-
-//    ContainerType *container=m_containerQueue.get([&](ContainerType *container){container->build(); });
-    ContainerType *container=getContainer();
-    
-#ifdef DEBUG_RENDERERS
-    Log::debug("MainThread - getFreeContainer Container %llx", container);
-#endif//DEBUG_RENDERERS
-
-    return container;
 }
 
-template<typename _Grid, typename _Container, typename _Index>
-void ActiveVolume<_Grid, _Container, _Index>::releaseFreeContainer(ContainerType *container)
+template<typename _Grid, typename _ChunkContainer, typename _RegionContainer>
+void ActiveVolume<_Grid, _ChunkContainer, _RegionContainer>::update(MeshUpdates &loadedMeshes, MeshUpdates &releaseMeshes)
 {
-//    MeshBuffer mesh=container->clearMesh();
-//
-//    if(mesh.valid)
-//        m_meshHandler->releaseMesh(mesh);
-#ifdef DEBUG_RENDERERS
-    Log::debug("MainThread - Container %llx release Handle %llx action: %d", container, container->getHandle().get(), container->getAction());
-#endif//DEBUG_RENDERERS
+    m_grid->getUpdated(m_updatedRegions, m_updatedChunks, m_completedRequests);
 
-    container->clear();
-//    m_containerQueue.release(container);
-    releaseContainer(container);
+    updateRegions();
+
+    updateChunks();
+
+    updateMeshes(loadedMeshes, releaseMeshes);
+}
+
+template<typename _Grid, typename _ChunkContainer, typename _RegionContainer>
+void ActiveVolume<_Grid, _ChunkContainer, _RegionContainer>::updateRegions()
+{
+    if(!m_updatedRegions.empty())
+    {
+        //not handling region updates at the moment
+        m_updatedRegions.clear();
+    }
+}
+
+template<typename _Grid, typename _ChunkContainer, typename _RegionContainer>
+void ActiveVolume<_Grid, _ChunkContainer, _RegionContainer>::updateChunks()
+{
+    if(!m_updatedChunks.empty())
+    {
+        //handle any chunk updates
+        ChunkContainer *container;
+        RegionChunkIndex index;
+        typename _Grid::DescriptorType &descriptors=m_grid->getDescriptors();
+
+        for(size_t i=0; i<m_updatedChunks.size(); ++i)
+        {
+            m_loadingChunks--;
+
+            Key &key=m_updatedChunks[i];
+
+            index.region=descriptors.getRegionIndex(key.regionHash);
+            index.chunk=descriptors.getChunkIndex(key.chunkHash);
+
+            ChunkContainerInfo *containerInfo=m_chunkVolume.getContainerInfo(index);
+
+            if(containerInfo==nullptr)
+            {
+#ifdef VOXIGEN_DEBUG_ACTIVEVOLUME
+                Log::debug("ActiveVolume::update - Chunk container(%llx, %llx) load complete but container invalid", nullptr, key.hash);
+#endif
+                continue;
+            }
+
+            if(container->isValid()&&containerInfo->mesh)
+            {
+#ifdef VOXIGEN_DEBUG_ACTIVEVOLUME
+                Log::debug("ActiveVolume::update - Chunk container(%llx, %llx) load complete adding to mesh request", containerInfo->container, key.hash);
+#endif
+                m_chunkMeshQueue.push_back(container);
+            }
+            else
+            {
+                if(containerInfo->mesh)
+                {
+#ifdef VOXIGEN_DEBUG_ACTIVEVOLUME
+                    Log::debug("ActiveVolume::update - Chunk container(%llx, %llx) load complete no mesh currently needed", containerInfo->container, key.hash);
+#endif
+                }
+                else
+                {
+#ifdef VOXIGEN_DEBUG_ACTIVEVOLUME
+                    Log::debug("ActiveVolume::update - Chunk container(%llx, %llx) load complete but handle invalid", containerInfo->container, key.hash);
+#endif
+                }
+            }
+        }
+        m_updatedChunks.clear();
+    }
+}
+
+template<typename _Grid, typename _ChunkContainer, typename _RegionContainer>
+void ActiveVolume<_Grid, _ChunkContainer, _RegionContainer>::updateMeshes(MeshUpdates &loadedMeshes, MeshUpdates &releaseMeshes)
+{
+    //return all released meshes
+    for(size_t i=0; i<releaseMeshes.size(); ++i)
+    {
+        m_chunkMeshes.release(releaseMeshes[i].mesh);
+    }
+    releaseMeshes.clear();
+
+    for(size_t i=0; i<m_completedRequests.size(); ++i)
+    {
+        process::Request *request=m_completedRequests[i];
+
+        switch(request->type)
+        {
+        case process::Type::Mesh:
+        {
+#ifdef VOXIGEN_DEBUG_ACTIVEVOLUME
+            Log::debug("ActiveVolume::update - process chunk mesh %llx", request);
+#endif
+            completeMeshRequest(request, loadedMeshes);
+        }
+        break;
+        default:
+            break;
+        }
+#ifdef VOXIGEN_DEBUG_ACTIVEVOLUME
+        Log::debug("ActiveVolume::update - release request %llx", request);
+#endif
+        getProcessThread().releaseRequest(request);
+    }
+    m_completedRequests.clear();
+
+    generateMeshRequest();
+}
+
+template<typename _Grid, typename _ChunkContainer, typename _RegionContainer>
+void ActiveVolume<_Grid, _ChunkContainer, _RegionContainer>::completeMeshRequest(process::Request *request, MeshUpdates &loadedMeshes)
+{
+    ChunkContainer *container=(ChunkContainer *)request->data.buildMesh.renderer;
+    Mesh *mesh=(Mesh *)request->data.buildMesh.mesh;
+
+    //updated chunks just need to swap out the mesh as that is all that should have been changed
+#ifdef VOXIGEN_DEBUG_ACTIVEVOLUME
+    glm::ivec3 regionIndex=container->getRegionIndex();
+    glm::ivec3 chunkIndex=container->getChunkIndex();
+
+    Log::debug("ActiveVolume::requestMesh - Chunk renderer (%llx,%llx) request:%llx - mesh complete", 
+        container, container->getHandle().get(), request);
+#endif//DEBUG_MESH
+
+    RegionChunkIndex index;
+
+    index.region=container->getRegionIndex();
+    index.chunk=container->getChunkIndex();
+
+    ChunkContainerInfo *chunkContainer=m_chunkVolume.getContainerInfo(index);
+
+    if((chunkContainer==nullptr) || (chunkContainer->container != container))
+    {
+#ifdef VOXIGEN_DEBUG_ACTIVEVOLUME
+        Log::debug("ActiveVolume::requestMesh - Chunk renderer(%llx, %llx) request:%llx - mesh complete but renderer no longer active*********", 
+            container, container->getKey().hash, request);
+#endif
+
+        //need to let the container know that it is idle again
+        container->setAction(RenderAction::Idle); //renderer is idle again, make sure it can be cleaned up
+
+//        getProcessThread().returnMesh(container, request->data.buildMesh.mesh);
+        m_chunkMeshes.release(mesh);
+        getProcessThread().releaseRequest(request);
+        m_meshingChunks--;
+        return;
+    }
+
+    SharedChunkHandle chunkHandle=container->getChunkHandle();
+
+    chunkHandle->removeInUse();
+    if(!chunkHandle->inUse())
+    {
+#ifdef VOXIGEN_DEBUG_ACTIVEVOLUME
+        Log::debug("ActiveVolume::requestMesh - Chunk renderer(%llx, %llx) mesh complete and being released", container, container->getKey().hash);
+#endif
+        m_grid->releaseChunk(chunkHandle.get());
+    }
+    else
+    {
+#ifdef VOXIGEN_DEBUG_ACTIVEVOLUME
+        Log::debug("ActiveVolume::requestMesh - Chunk renderer(%llx, %llx) mesh complete but still in use", container, container->getKey().hash);
+#endif
+    }
+    
+    loadedMeshes.emplace_back(container, mesh);
+}
+
+template<typename _Grid, typename _ChunkContainer, typename _RegionContainer>
+void ActiveVolume<_Grid, _ChunkContainer, _RegionContainer>::generateMeshRequest()
+{
+    //send chunks off the need to be meshed
+    for(size_t i=0; i<m_chunkMeshQueue.size(); )
+    {
+        ChunkContainer *renderer=m_chunkMeshQueue[i];
+        SharedChunkHandle handle=renderer->getHandle();
+
+        if(!handle)
+        {
+            //chunk has been released so meshing no longer needed
+#ifdef VOXIGEN_DEBUG_ACTIVEVOLUME
+            Log::debug("ActiveVolume::generateMeshRequest - Chunk renderer(%llx, %llx) mesh request but handle invalid", renderer, renderer->getKey().hash);
+#endif
+            //remove item by setting to back and poping it
+            m_chunkMeshQueue[i]=m_chunkMeshQueue.back();
+            m_chunkMeshQueue.pop_back();
+            continue;
+        }
+
+        if((renderer->getAction()==RenderAction::Idle)&&(!handle->empty()))
+        {
+            Mesh *mesh=m_chunkMeshes.get();
+
+            if(!mesh)
+            {
+#ifdef VOXIGEN_DEBUG_ACTIVEVOLUME
+                Log::debug("ActiveVolume::generateMeshRequest - Chunk renderer(%llx, %llx) request mesh failed no meshes*********************", renderer, renderer->getKey().hash);
+#endif
+                break;//need to wait for more meshes
+            }
+
+#ifdef VOXIGEN_DEBUG_ACTIVEVOLUME
+            Log::debug("ActiveVolume::generateMeshRequest - Chunk renderer(%llx, %llx) request mesh", renderer, renderer->getKey().hash);
+#endif
+            renderer->setAction(RenderAction::Meshing);
+            m_meshingChunks++;
+            handle->addInUse();
+
+            getProcessThread().requestChunkMesh(renderer, mesh);
+            
+            //remove item by setting to back and poping it
+            m_chunkMeshQueue[i]=m_chunkMeshQueue.back();
+            m_chunkMeshQueue.pop_back();
+            continue;
+        }
+        else
+        {
+#ifdef VOXIGEN_DEBUG_ACTIVEVOLUME
+            Log::debug("ActiveVolume::generateMeshRequest - Chunk renderer(%llx, %llx) request mesh but chunk is busy", renderer, renderer->getKey().hash);
+#endif
+        }
+
+        ++i;
+    }
 }
 
 }//namespace voxigen
