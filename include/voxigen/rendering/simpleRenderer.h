@@ -46,11 +46,22 @@ namespace voxigen
 template<typename _Renderer>
 struct MeshUpload
 {
+    MeshUpload(_Renderer *renderer, ChunkTextureMesh *mesh):renderer(renderer), mesh(mesh){}
+
     _Renderer *renderer;
     ChunkTextureMesh *mesh;
     MeshBuffer meshBuffer;
 };
 
+namespace Draw
+{
+static constexpr size_t RegionVolume=0;
+static constexpr size_t ChunkVolume=1;
+
+static constexpr size_t Normal=0;
+static constexpr size_t Info=1;
+static constexpr size_t Outline=2;
+}
 /////////////////////////////////////////////////////////////////////////////////////////
 //SimpleRenderer
 /////////////////////////////////////////////////////////////////////////////////////////
@@ -82,6 +93,9 @@ public:
 //    typedef std::unordered_map<RegionHash, RegionRendererType> RegionRendererMap;
 
     typedef ActiveVolume<Grid, ChunkRenderer, RegionRenderer> ActiveVolume;
+    typedef typename ActiveVolume::MeshUpdate MeshUpdate;
+    typedef typename ActiveVolume::MeshUpdates MeshUpdates;
+
 //    typedef RegionChunkIndex<typename _Grid::RegionType, typename _Grid::ChunkType> RegionChunkIndexType;
 //    typedef ActiveVolume<GridType, ChunkRendererType, RegionChunkIndexType> ActiveVolumeType;
 //    typedef RegionIndex<typename _Grid::RegionType> RegionIndexType;
@@ -92,6 +106,7 @@ public:
 //    typedef prep::RequestMesh<_Grid, RegionRendererType> RegionRequestMesh;
 
 //    typedef RenderPrepThread<bool, ChunkRendererType> MesherThread;
+
     struct MeshRequestInfo
     {
         process::Request *request;
@@ -112,8 +127,10 @@ public:
     
     void draw();
     
-    template<size_t _drawType, typename _ActiveVolume>
-    void drawActiveVolume(_ActiveVolume &activeVolume);
+    template<size_t volumeType, size_t _drawType>
+    void drawActiveVolume();
+    template<size_t _drawType, typename _VolumeType>
+    void drawVolume(const _VolumeType &volume);
 
     void update(bool &regionsUpdated, bool &chunksUpdated);
 
@@ -171,12 +188,16 @@ public:
     bool buildMesh(process::Request *request);
 
 private:
+    void updateMeshes();
+    bool processChunkMesh(MeshUpdate &update);
+
     void updateChunkHandles(bool &regionsUpdated, bool &chunksUpdated);
     void updatePrepChunks();
 
     void processChunkMesh(process::Request *request);
 
-    void uploadMesh(process::Request *request);
+    void uploadMesh(MeshUpdate &update);
+//    void uploadMesh(process::Request *request);
     void completeMeshUploads();
 
 //    MesherThread m_mesherThread;
@@ -216,8 +237,8 @@ private:
 //    ActiveVolumeType m_activeChunkVolume;
 //    RegionActiveVolumeType m_activeRegionVolume;
     ActiveVolume m_activeVolume;
-    typename ActiveVolume::MeshUpdates m_loadedMeshes;
-    typename ActiveVolume::MeshUpdates m_releaseMeshes;
+    MeshUpdates m_loadedMeshes;
+    MeshUpdates m_releaseMeshes;
 
 //    std::vector<ChunkRendererType *> m_loadChunk;
 //    LoadRequests m_loadChunk;

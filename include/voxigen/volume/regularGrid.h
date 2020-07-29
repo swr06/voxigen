@@ -91,9 +91,11 @@ public:
     SharedRegionHandle getRegion(RegionHash hash);
     bool loadRegion(RegionHandleType *handle, size_t lod, bool force=false);
     bool cancelLoadRegion(RegionHandleType *handle);
+
+    const glm::ivec3 &getRegionCount() { return m_descriptors.getRegionCount(); }
 //    RegionHash getRegionHash(const glm::vec3 &gridPosition);
 
-    bool updatePosition(const glm::ivec3 &region, const glm::ivec3 &chunk);
+//    bool updatePosition(const glm::ivec3 &region, const glm::ivec3 &chunk);
 
     glm::ivec3 size() const;
     static glm::ivec3 regionCellSize();

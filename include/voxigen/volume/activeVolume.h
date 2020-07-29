@@ -29,6 +29,9 @@ struct ChunkContainerInfo
 template<typename _Container>
 struct RegionContainerInfo
 {
+    //what lod to load and mesh
+    size_t lod;
+    //render container
     _Container *container;
 };
 
@@ -59,13 +62,21 @@ public:
     typedef RegionIndex<typename Grid::Region> RegionIndex;
     typedef RegionChunkIndex<typename Grid::Region, typename Grid::Chunk> RegionChunkIndex;
 
-    typedef ContainerVolume<Grid, RegionIndex, RegionContainerInfo<RegionContainer>, RegionContainer> RegionVolume;
+    typedef RegionContainerInfo<RegionContainer> RegionContainerInfo;
+    typedef ContainerVolume<Grid, RegionIndex, RegionContainerInfo, RegionContainer> RegionVolume;
+    typedef typename RegionVolume::VolumeInfo RegionVolumeInfo;
+    typedef typename RegionVolume::LoadRequests RegionLoadRequests;
+    typedef std::vector<RegionContainer *> RegionContainers;
 
-    typedef typename ChunkContainerInfo<ChunkContainer> ChunkContainerInfo;
+    typedef ChunkContainerInfo<ChunkContainer> ChunkContainerInfo;
     typedef ContainerVolume<Grid, RegionChunkIndex, ChunkContainerInfo, ChunkContainer> ChunkVolume;
+    typedef typename ChunkVolume::VolumeInfo ChunkVolumeInfo;
     typedef typename ChunkVolume::LoadContainer ChunkLoadContainer;
+    typedef typename ChunkVolume::UpdateContainer ChunkUpdateContainer;
+    typedef typename ChunkVolume::UpdateContainers ChunkUpdateContainers;
     typedef typename ChunkVolume::LoadRequests ChunkLoadRequests;
     typedef std::vector<ChunkContainer *> ChunkContainers;
+    
     
     typedef ChunkTextureMesh Mesh;
     typedef MeshUpdate<ChunkContainer, Mesh> MeshUpdate;
@@ -77,15 +88,24 @@ public:
     ~ActiveVolume();
 
     void setViewRadius(const glm::ivec3 &radius);
-    size_t getContainerCount() { return 0;/* m_containerCount;*/ }
+//    size_t getContainerCount() { return 0;/* m_containerCount;*/ }
+    size_t getChunkContainerCount() { return m_chunkVolume.getContainerCount(); }
 
     void init(const glm::ivec3 &regionIndex, const glm::ivec3 &chunkIndex);
+    void initRegionVolumeInfo(std::vector<RegionContainerInfo> &volume, glm::ivec3 &volumeSize, glm::ivec3 &volumeCenter);
+    void initChunkVolumeInfo(std::vector<ChunkContainerInfo> &volume, glm::ivec3 &volumeSize, glm::ivec3 &volumeCenter);
+
+    const glm::ivec3 &getRegionPosition() { return m_chunkIndex.regionIndex(); }
+
     void updatePosition(const glm::ivec3 &regionIndex, const glm::ivec3 &chunkIndex);
 
     void update(MeshUpdates &loadedMeshes, MeshUpdates &releaseMeshes);
 //    void updateRegions(RegionContainers &newContainers, ChunkContainers &releasedContainers);
 //    void updateChunks(RegionContainers &newRegionContainers, ChunkContainers &newChunkContainers);
 //    void updateRegions(RegionContainers &newRegionContainers, ChunkContainers &newChunkContainers);
+
+    RegionVolumeInfo &getRegionVolume() { return m_regionVolume.getVolume(); }
+    ChunkVolumeInfo &getChunkVolume() { return m_chunkVolume.getVolume(); }
 
 //container allocation
     RegionContainer *getRegionContainer();
@@ -100,9 +120,9 @@ public:
     size_t getMeshingChunkCount() { return m_meshingChunks; }
 
 private:
-    void initRegionVolumeInfo();
-    void initChunkVolumeInfo();
+    void updateChunkVolume();
 
+    void releaseContainers();
     void updateRegions();
     void updateChunks();
     void updateMeshes(MeshUpdates &loadedMeshes, MeshUpdates &releaseMeshes);
@@ -128,9 +148,14 @@ private:
     RegionChunkIndex m_chunkIndex;
 
     RegionVolume m_regionVolume;
+    RegionLoadRequests m_regionLoadRequests;
+    RegionContainers m_regionReleases;
+
     ChunkVolume m_chunkVolume;
     ChunkLoadRequests m_chunkLoadRequests;
-    ChunkContainers m_chunkReleases;
+    ChunkUpdateContainers m_chunkUpdates;
+
+    std::vector<ChunkContainer *> m_releaseChunkContainers;
 
 //    std::vector<MeshRequestInfo> m_meshUpdate;
 

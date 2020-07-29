@@ -4,13 +4,15 @@ namespace voxigen
 {
 
 template<typename _Grid, typename _Index, typename _ContainerInfo, typename _Container>
-ContainerVolume<_Grid, _Index, _ContainerInfo, _Container>::ContainerVolume(Grid *grid, Descriptor *descriptors, GetContainer getContainer, ReleaseContainer releaseContainer):
+ContainerVolume<_Grid, _Index, _ContainerInfo, _Container>::ContainerVolume(Grid *grid, Descriptor *descriptors, InitVolumeInfo initVolumeInfo, GetContainer getContainer, ReleaseContainer releaseContainer):
 m_grid(grid),
 m_descriptors(descriptors),
+m_init(false),
+initVolumeInfo(initVolumeInfo),
 getContainer(getContainer),
 releaseContainer(releaseContainer)
 {
-    setViewRadius(glm::ivec3(64, 64, 64));
+//    setViewRadius(glm::ivec3(64, 64, 64));
 }
 
 template<typename _Grid, typename _Index, typename _ContainerInfo, typename _Container>
@@ -20,11 +22,13 @@ ContainerVolume<_Grid, _Index, _ContainerInfo, _Container>::~ContainerVolume()
 }
 
 template<typename _Grid, typename _Index, typename _ContainerInfo, typename _Container>
-void ContainerVolume<_Grid, _Index, _ContainerInfo, _Container>::setViewRadius(const glm::ivec3 &radius)
+void ContainerVolume<_Grid, _Index, _ContainerInfo, _Container>::setViewRadius(const glm::ivec3 &radius)// , LoadRequests &load, std::vector<Container *> &release)
 {
-//    m_viewRadius=radius;
-    glm::ivec3 cubeSize=calcVolumeSize(radius);
-//    m_containerCount=cubeSize.x*cubeSize.y*cubeSize.z;
+    m_radius=radius;
+    glm::ivec3 volumeSize=calcVolumeSize(radius);
+
+    m_containerCount=volumeSize.x*volumeSize.y*volumeSize.z;
+//    init(m_index, load, release);
 }
 
 template<typename _Grid, typename _Index, typename _ContainerInfo, typename _Container>
@@ -55,89 +59,26 @@ glm::ivec3 ContainerVolume<_Grid, _Index, _ContainerInfo, _Container>::calcVolum
 }
 
 template<typename _Grid, typename _Index, typename _ContainerInfo, typename _Container>
-void ContainerVolume<_Grid, _Index, _ContainerInfo, _Container>::init(const Index &regionIndex, LoadRequests &load, std::vector<Container *> &release)
+void ContainerVolume<_Grid, _Index, _ContainerInfo, _Container>::init(const Index &index, LoadRequests &load, UpdateContainers &updates)
 {
-    glm::ivec3 regionSize=m_descriptors->getRegionSize();
- 
     //release any currently existing container
     if(!m_volume.empty())
-        releaseContainers(glm::ivec3(0, 0, 0), m_volumeSize, release);
+        releaseContainers(glm::ivec3(0, 0, 0), m_volumeSize, updates);
 
-    m_volumeSize=calcVolumeSize(m_viewRadius);
+    m_volumeSize=calcVolumeSize(m_radius);
     m_volume.resize(m_volumeSize.x*m_volumeSize.y*m_volumeSize.z);
 
     for(auto &info:m_volume)
     {
         info.container=nullptr;
     }
-    
+
     m_volumeCenterIndex=(m_volumeSize/2);
 
-    Index startIndex;
-    size_t renderPos=0;
+    initVolumeInfo(m_volume, m_volumeSize, m_volumeCenterIndex);
 
-    startIndex=Index::offset(index, -m_volumeCenterIndex);
-
-    initVolumeInfo();
-    getContainers(glm::ivec3(0, 0, 0), startIndex, m_volumeSize, load);
-    m_index=index;
-}
-
-template<typename _Grid, typename _Index, typename _ContainerInfo, typename _Container>
-void ContainerVolume<_Grid, _Index, _ContainerInfo, _Container>::initVolumeInfo()
-{
-    glm::ivec3 center(m_volumeSize.x/2, m_volumeSize.y/2, m_volumeSize.z/2);
-    glm::ivec3 chunkIndex(0, 0, 0);
-    size_t index=0;
-
-    glm::vec3 centerf=center;
-
-    bool borderZ;
-    bool borderY;
-    bool border;
-
-    //build volume info
-    chunkIndex.z=0;
-    for(size_t z=0; z<m_volumeSize.z; ++z)
-    {
-        if((z==0)||(z==m_volumeSize.z-1))
-            borderZ=true;
-        else
-            borderZ=false;
-
-        chunkIndex.y=0;
-        for(size_t y=0; y<m_volumeSize.y; ++y)
-        {
-            if((y==0)||(y==m_volumeSize.z-1))
-                borderY=true;
-            else
-                borderY=borderZ;
-
-            chunkIndex.x=0;
-            for(size_t x=0; x<m_volumeSize.x; ++x)
-            {
-                if((x==0)||(x==m_volumeSize.x-1))
-                    border=true;
-                else
-                    border=borderY;
-
-                ContainerInfo &info=m_volume[index];
-
-                float distance=glm::distance(glm::vec3(chunkIndex), centerf);
-
-                info.keepData=(distance<=3.0f);
-                info.lod=(distance/10.0f);
-                info.mesh=!border;
-
-                ++chunkIndex.x;
-                ++index;
-            }
-            ++chunkIndex.y;
-        }
-        ++chunkIndex.z;
-    }
-
-    generateUpdateOrder();
+    rebuild(index, load, updates);
+    m_init=true;
 }
 
 template<typename _Grid, typename _Index, typename _ContainerInfo, typename _Container>
@@ -147,33 +88,38 @@ void ContainerVolume<_Grid, _Index, _ContainerInfo, _Container>::generateUpdateO
 }
 
 template<typename _Grid, typename _Index, typename _ContainerInfo, typename _Container>
-void ContainerVolume<_Grid, _Index, _ContainerInfo, _Container>::update(const Index &index, LoadRequests &load, std::vector<Container *> &release)
+void ContainerVolume<_Grid, _Index, _ContainerInfo, _Container>::update(const Index &index, LoadRequests &load, UpdateContainers &updates)
 {
+    if(!m_init)
+        init(index, load, updates);
     //no changes, skip update
 //    if((regionIndex==m_regionIndex)&&(chunkIndex==m_chunkIndex))
 //        return;
-    if(m_index==index)
+//    if(m_index==index)
+    if(m_missingContainers)
     {
         getMissingContainers(load);
-        return;
     }
 
-    //    glm::ivec3 gridRegionSize=m_descriptors->getRegionSize();
-    glm::ivec3 offset=_Index::difference(m_index, index);
+    if(m_index == index)
+        return;
 
-    bool rebuild=false;
+    //    glm::ivec3 gridRegionSize=m_descriptors->getRegionSize();
+    glm::ivec3 offset=_Index::difference(m_grid, m_index, index);
+
+    bool needRebuild=false;
     glm::ivec3 direction=glm::abs(offset);
 
     if(direction.x>m_volumeSize.x/2)
-        rebuild=true;
+        needRebuild=true;
     else if(direction.y>m_volumeSize.y/2)
-        rebuild=true;
+        needRebuild=true;
     if(direction.z>m_volumeSize.z/2)
-        rebuild=true;
+        needRebuild=true;
 
-    if(rebuild)
+    if(needRebuild)
     {
-        init(index, load, release);
+        rebuild(index, load, updates);
         return;
     }
 
@@ -234,7 +180,7 @@ void ContainerVolume<_Grid, _Index, _ContainerInfo, _Container>::update(const In
     regionSize.y=m_volumeSize.y;
     regionSize.z=releaseSize.z;
 
-    releaseContainers(regionStart, regionSize, release);
+    releaseContainers(regionStart, regionSize, updates);
 
     if(copyTo.z<copyFrom.z)
         regionStart.z=copyFrom.z;
@@ -249,7 +195,7 @@ void ContainerVolume<_Grid, _Index, _ContainerInfo, _Container>::update(const In
     else
         regionStart.y=m_volumeSize.y-releaseSize.y;
 
-    releaseContainers(regionStart, regionSize, release);
+    releaseContainers(regionStart, regionSize, updates);
 
     if(copyTo.y<copyFrom.y)
         regionStart.y=copyFrom.y;
@@ -264,7 +210,7 @@ void ContainerVolume<_Grid, _Index, _ContainerInfo, _Container>::update(const In
     else
         regionStart.x=m_volumeSize.x-releaseSize.x;
 
-    releaseContainers(regionStart, regionSize, release);
+    releaseContainers(regionStart, regionSize, updates);
 
     //    size_t index=copyTo.z*(m_volumeSize.y*m_volumeSize.x)+copyTo.y*m_volumeSize.x+copyTo.x;
     //    size_t strideY=(dir.y-dir.x)*m_volumeSize.x;
@@ -335,6 +281,9 @@ void ContainerVolume<_Grid, _Index, _ContainerInfo, _Container>::update(const In
                 //                if(m_volume[indexTo])
                 //                    m_volume[indexTo]->refCount--;
 
+                if(m_volume[indexTo].mesh && !m_volume[indexFrom].mesh)
+                    m_statusChange.emplace_back(UpdateStatus::NeedMesh, m_volume[indexFrom].container);
+
                 m_volume[indexTo].container=m_volume[indexFrom].container;
                 //               m_volume[indexTo]->refCount++;
 
@@ -363,7 +312,7 @@ void ContainerVolume<_Grid, _Index, _ContainerInfo, _Container>::update(const In
 
     //    glm::ivec3 updateRegionIndex;
     //    glm::ivec3 updateChunkIndex;
-    Index updateIndex=Index::offset(index, (regionStart-m_volumeCenterIndex));
+    Index updateIndex=Index::offset(m_grid, index, (regionStart-m_volumeCenterIndex));
     getContainers(regionStart, updateIndex, regionSize, load);
 
     if(copyTo.z<=copyFrom.z)
@@ -379,7 +328,7 @@ void ContainerVolume<_Grid, _Index, _ContainerInfo, _Container>::update(const In
         regionStart.y=0;
     regionSize.y=releaseSize.y;
 
-    updateIndex=Index::offset(index, (regionStart-m_volumeCenterIndex));
+    updateIndex=Index::offset(m_grid, index, (regionStart-m_volumeCenterIndex));
     getContainers(regionStart, updateIndex, regionSize, load);
 
     if(copyTo.y<=copyFrom.y)
@@ -395,7 +344,7 @@ void ContainerVolume<_Grid, _Index, _ContainerInfo, _Container>::update(const In
         regionStart.x=0;
     regionSize.x=releaseSize.x;
 
-    updateIndex=Index::offset(index, (regionStart-m_volumeCenterIndex));
+    updateIndex=Index::offset(m_grid, index, (regionStart-m_volumeCenterIndex));
     getContainers(regionStart, updateIndex, regionSize, load);
 
     m_index=index;
@@ -405,7 +354,22 @@ void ContainerVolume<_Grid, _Index, _ContainerInfo, _Container>::update(const In
 }
 
 template<typename _Grid, typename _Index, typename _ContainerInfo, typename _Container>
-void ContainerVolume<_Grid, _Index, _ContainerInfo, _Container>::releaseContainers(const glm::ivec3 &start, const glm::ivec3 &size, std::vector<Container *> &release)
+void ContainerVolume<_Grid, _Index, _ContainerInfo, _Container>::rebuild(const Index &index, LoadRequests &load, UpdateContainers &updates)
+{
+    if(!m_volume.empty())
+        releaseContainers(glm::ivec3(0, 0, 0), m_volumeSize, updates);
+
+    m_missingContainers=false;
+
+    Index startIndex;
+
+    startIndex=Index::offset(m_grid, index, -m_volumeCenterIndex);
+    getContainers(glm::ivec3(0, 0, 0), startIndex, m_volumeSize, load);
+    m_index=index;
+}
+
+template<typename _Grid, typename _Index, typename _ContainerInfo, typename _Container>
+void ContainerVolume<_Grid, _Index, _ContainerInfo, _Container>::releaseContainers(const glm::ivec3 &start, const glm::ivec3 &size, UpdateContainers &updates)
 {
     size_t index=start.z*(m_volumeSize.y*m_volumeSize.x)+start.y*m_volumeSize.x+start.x;
 
@@ -427,8 +391,12 @@ void ContainerVolume<_Grid, _Index, _ContainerInfo, _Container>::releaseContaine
                 //                    releaseInfo(container);
                 //                }
                 if(container)
-                    release.push_back(container);
-                m_volume[index].container=nullptr;
+                {
+                    m_volume[index].container=nullptr;
+                    updates.emplace_back(UpdateStatus::release, container);
+                    releaseContainer(container);
+                }
+                
                 index++;
             }
             index+=strideX;
@@ -459,40 +427,47 @@ void ContainerVolume<_Grid, _Index, _ContainerInfo, _Container>::getContainers(c
 
             for(size_t x=0; x<size.x; x++)
             {
-                Container *container=getContainer();
+                typename Index::Handle handle=Index::getHandle(m_grid, renderIndex);
 
-                //                assert(container);
-
-                if(container)
+                if(handle)
                 {
-                    m_volume[index].container=container;
-                    typename Index::Handle handle=Index::getHandle(m_grid, renderIndex);
+                    Container *container=getContainer();
 
-                    container->setAction(RenderAction::Idle);
-                    container->setHandle(handle);
+                    //                assert(container);
+
+                    if(container)
+                    {
+                        m_volume[index].container=container;
+
+                        container->setAction(RenderAction::Idle);
+                        container->setHandle(handle);
 #ifdef DEBUG_RENDERERS
-                    Log::debug("MainThread - Container %llx %s setHandle %llx", container, renderIndex.pos().c_str(), handle.get());
+                        Log::debug("MainThread - Container %llx %s setHandle %llx", container, renderIndex.pos().c_str(), handle.get());
 #endif//DEBUG_RENDERERS
-                    load.emplace_back(m_volume[index].lod, container);
+                        load.emplace_back(m_volume[index].lod, container);
+                    }
+                    else
+                    {
+#ifdef DEBUG_RENDERERS
+                        Log::debug("*****  MainThread - Failed to get container %s", renderIndex.pos().c_str());
+#endif//DEBUG_RENDERERS
+                        m_volume[index].container=nullptr;
+                        m_missingContainers=true;
+                    }
                 }
                 else
-                {
-#ifdef DEBUG_RENDERERS
-                    Log::debug("*****  MainThread - Failed to get container %s", renderIndex.pos().c_str());
-#endif//DEBUG_RENDERERS
                     m_volume[index].container=nullptr;
-                }
 
                 index++;
-                renderIndex.incX();
+                renderIndex.incX(m_grid);
             }
 
             index+=strideX;
-            renderIndex.incY();
+            renderIndex.incY(m_grid);
         }
 
         index+=strideY;
-        renderIndex.incZ();
+        renderIndex.incZ(m_grid);
     }
 }
 
@@ -500,8 +475,9 @@ template<typename _Grid, typename _Index, typename _ContainerInfo, typename _Con
 void ContainerVolume<_Grid, _Index, _ContainerInfo, _Container>::getMissingContainers(LoadRequests &load)
 {
     size_t index=0;
-    Index startIndex=Index::offset(m_index, -m_volumeCenterIndex);
+    Index startIndex=Index::offset(m_grid, m_index, -m_volumeCenterIndex);
     Index renderIndex;
+    bool missingContainers=false;
 
     renderIndex.setZ(startIndex);
     for(size_t z=0; z<m_volumeSize.z; z++)
@@ -517,7 +493,10 @@ void ContainerVolume<_Grid, _Index, _ContainerInfo, _Container>::getMissingConta
                     Container *container=getContainer();
 
                     if(!container)
+                    {
+                        missingContainers=true;
                         continue;
+                    }
 
                     m_volume[index].container=container;
                     typename Index::Handle handle=Index::getHandle(m_grid, renderIndex);
@@ -529,13 +508,15 @@ void ContainerVolume<_Grid, _Index, _ContainerInfo, _Container>::getMissingConta
 #endif//DEBUG_RENDERERS
                     load.emplace_back(m_volume[index].lod, container);
                 }
-                renderIndex.incX();
+                renderIndex.incX(m_grid);
                 ++index;
             }
-            renderIndex.incY();
+            renderIndex.incY(m_grid);
         }
-        renderIndex.incZ();
+        renderIndex.incZ(m_grid);
     }
+
+    m_missingContainers=missingContainers;
 }
 
 //template<typename _Grid, typename _Index, typename _ContainerInfo, typename _Container>
@@ -678,7 +659,7 @@ void ContainerVolume<_Grid, _Index, _ContainerInfo, _Container>::getMissingConta
 template<typename _Grid, typename _Index, typename _ContainerInfo, typename _Container>
 typename ContainerVolume<_Grid, _Index, _ContainerInfo, _Container>::ContainerInfo *ContainerVolume<_Grid, _Index, _ContainerInfo, _Container>::getContainerInfo(const Index &index)
 {
-    glm::ivec3 offset=_Index::difference(m_index, index);
+    glm::ivec3 offset=_Index::difference(m_grid, m_index, index);
     glm::ivec3 containerIndex=m_volumeCenterIndex+offset;
 
     if(containerIndex.x<0)

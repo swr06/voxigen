@@ -245,6 +245,7 @@ set(voxigen_volume
     include/voxigen/volume/gridDescriptors.h
     src/volume/gridDescriptors.cpp
     include/voxigen/volume/gridFunctions.h
+    src/volume/gridFunctions.cpp
     include/voxigen/volume/handleState.h
     include/voxigen/volume/region.h
     include/voxigen/volume/regionChunkIndex.h

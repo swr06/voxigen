@@ -303,7 +303,7 @@ int main(int argc, char ** argv)
 //    renderer.setViewRadius(glm::ivec3(2048, 2048, 512));
     processThread.setRequestSize((renderer.getRendererCount()*3)/2);
 
-    world.updatePosition(renderingOptions.playerRegionIndex, renderingOptions.playerChunkIndex);
+//    world.updatePosition(renderingOptions.playerRegionIndex, renderingOptions.playerChunkIndex);
     renderer.setCameraChunk(renderingOptions.playerRegionIndex, renderingOptions.playerChunkIndex);
     renderer.setPlayerChunk(renderingOptions.playerRegionIndex, renderingOptions.playerChunkIndex);
 //    lastUpdateAdded=renderer.updateChunks();
@@ -692,7 +692,7 @@ void updatePosition(World &world)
                 renderingOptions.playerChunkIndex=chunkIndex;
 
                 g_renderer->setPlayerChunk(renderingOptions.playerRegionIndex, renderingOptions.playerChunkIndex);
-                world.updatePosition(renderingOptions.playerRegionIndex, renderingOptions.playerChunkIndex);
+//                world.updatePosition(renderingOptions.playerRegionIndex, renderingOptions.playerChunkIndex);
             }
 
             if((cameraRegionIndex!=regionIndex)||(cameraPosition!=position))

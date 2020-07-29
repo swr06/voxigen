@@ -9,6 +9,8 @@ struct RegionChunkIndex
 {
     typedef std::shared_ptr<ChunkHandle<_Chunk>> Handle;
 
+    RegionChunkIndex():region(0, 0, 0), chunk(0, 0, 0) {}
+
     template<typename _Grid>
     static Handle getHandle(_Grid *grid, const RegionChunkIndex<_Region, _Chunk> &index)
     {
@@ -27,18 +29,21 @@ struct RegionChunkIndex
         return grid->cancelLoadChunk(handle.get());
     }
 
-    static glm::ivec3 difference(const RegionChunkIndex &index, const RegionChunkIndex &index2)
+    template<typename _Grid>
+    static glm::ivec3 difference(_Grid *grid, const RegionChunkIndex &index, const RegionChunkIndex &index2)
     {
         //        glm::ivec3 regionSize=details::regionSize<_Region>();
-
-        return details::difference<_Region>(index.region, index.chunk, index2.region, index2.chunk);
+        return details::difference<_Region, true, true, false>(index.region, index.chunk, index2.region, index2.chunk, &grid->getRegionCount());
     }
 
-    static RegionChunkIndex offset(const RegionChunkIndex &startIndex, const glm::ivec3 &delta)
+    template<typename _Grid>
+    static RegionChunkIndex offset(_Grid *grid, const RegionChunkIndex &startIndex, const glm::ivec3 &delta)
     {
         RegionChunkIndex rcIndex;
 
         details::offsetIndexes<_Region>(startIndex.region, startIndex.chunk, delta, rcIndex.region, rcIndex.chunk);
+        details::wrap<true, true, false>(grid->getRegionCount(), rcIndex.region);
+
         return rcIndex;
     }
 
@@ -47,7 +52,7 @@ struct RegionChunkIndex
         return offset*details::regionCellSize<_Region, _Chunk>();
     }
 
-    glm::ivec3 regionIndex()
+    const glm::ivec3 &regionIndex()
     {
         return region;
     }
@@ -79,7 +84,8 @@ struct RegionChunkIndex
         chunk.z=index.chunk.z;
     }
 
-    void incX()
+    template<typename _Grid>
+    void incX(_Grid *grid)
     {
         chunk.x++;
         if(chunk.x>=details::regionSize<_Region>().x)
@@ -87,9 +93,11 @@ struct RegionChunkIndex
             chunk.x-=details::regionSize<_Region>().x;
             region.x++;
         }
+        details::wrapDim<0>(grid->getRegionCount(), region);
     }
 
-    void incY()
+    template<typename _Grid>
+    void incY(_Grid *grid)
     {
         chunk.y++;
         if(chunk.y>=details::regionSize<_Region>().y)
@@ -97,9 +105,11 @@ struct RegionChunkIndex
             chunk.y-=details::regionSize<_Region>().y;
             region.y++;
         }
+        details::wrapDim<1>(grid->getRegionCount(), region);
     }
 
-    void incZ()
+    template<typename _Grid>
+    void incZ(_Grid *grid)
     {
         chunk.z++;
         if(chunk.z>=details::regionSize<_Region>().z)
@@ -107,6 +117,7 @@ struct RegionChunkIndex
             chunk.z-=details::regionSize<_Region>().z;
             region.z++;
         }
+//        details::wrapDim<2>(grid->getRegionCount(), region);
     }
 
     glm::ivec3 region;

@@ -9,7 +9,7 @@ struct RegionIndex
 {
     typedef std::shared_ptr<RegionHandle<_Region>> Handle;
 
-    RegionIndex() {}
+    RegionIndex():index(0,0,0){}
     RegionIndex(const glm::ivec3 &index):index(index) {}
 
     template<typename _Grid>
@@ -31,16 +31,19 @@ struct RegionIndex
         return grid->cancelLoadRegion(handle.get());
     }
 
-    static glm::ivec3 difference(const RegionIndex &index1, const RegionIndex &index2)
+    template<typename _Grid>
+    static glm::ivec3 difference(_Grid *grid, const RegionIndex &index1, const RegionIndex &index2)
     {
-        return index2.index-index1.index;
+        return details::difference<_Region, true, true, false>(index1.index, index2.index, &grid->getRegionCount());
     }
 
-    static RegionIndex offset(const RegionIndex &startIndex, const glm::ivec3 &delta)
+    template<typename _Grid>
+    static RegionIndex offset(_Grid *grid, const RegionIndex &startIndex, const glm::ivec3 &delta)
     {
         RegionIndex regionIndex;
 
         regionIndex.index=startIndex.index+delta;
+        details::wrap<true, true, false>(grid->getRegionCount(), regionIndex.index);
         return regionIndex;
     }
 
@@ -49,7 +52,7 @@ struct RegionIndex
         return glm::ivec3(0, 0, 0);
     }
 
-    glm::ivec3 regionIndex()
+    const glm::ivec3 &regionIndex()
     {
         return index;
     }
@@ -74,19 +77,25 @@ struct RegionIndex
         index.z=setIndex.index.z;
     }
 
-    void incX()
+    template<typename _Grid>
+    void incX(_Grid *grid)
     {
         index.x++;
+        details::wrapDim<0>(grid->getRegionCount(), index);
     }
 
-    void incY()
+    template<typename _Grid>
+    void incY(_Grid *grid)
     {
         index.y++;
+        details::wrapDim<1>(grid->getRegionCount(), index);
     }
 
-    void incZ()
+    template<typename _Grid>
+    void incZ(_Grid *grid)
     {
         index.z++;
+//        details::wrapDim<2>(grid->getRegionCount(), index);
     }
 
     std::string pos()
